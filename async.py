@@ -389,12 +389,15 @@ class Decorator (object):
         raise NotImplementedError ()
 
     class BoundDecorator (object):
-        __slots__ = ('method', 'instance')
-        def __init__ (self, method, instance):
-            self.method, self.instance = method, instance
+        __slots__ = ('unbound', 'instance')
+        def __init__ (self, unbound, instance):
+            self.unbound, self.instance = unbound, instance
 
         def __call__ (self, *args, **keys):
-            return self.method (self.instance, *args, **keys)
+            return self.unbound (self.instance, *args, **keys)
+
+        def __getattr__ (self, attr):
+            return getattr (self.unbound, attr)
 
 #------------------------------------------------------------------------------#
 # Serialize                                                                    #
@@ -408,17 +411,27 @@ class Serialize (Decorator):
         self.queue, self.worker, self.wait = deque (), None, None
 
     def __call__ (self, *args, **keys):
+        if self.worker is None:
+            self.wait = self.async (*args, **keys)
+            if self.wait.IsCompleted ():
+                result, self.wait = self.wait, None
+                return result
+
         uid, self.uid = self.uid, self.uid + 1
         future = Future (lambda: self.wait_uid (uid))
-        self.queue.append ((uid, future, args, keys))
 
         if self.worker is None:
-            self.worker = self.worker_run ()
+            self.worker = self.worker_run (future)
+        else:
+            self.queue.append ((uid, future, args, keys))
 
         return future
 
     @Async
-    def worker_run (self):
+    def worker_run (self, future):
+        try: future.ResultSet ((yield self.wait))
+        except Exception: future.ErrorSet (*sys.exc_info ())
+
         try:
             while len (self.queue):
                 uid, future, args, keys = self.queue.popleft ()
@@ -436,6 +449,9 @@ class Serialize (Decorator):
                 return
             if self.wait is None:
                 return
+            self.wait.Wait ()
+
+        if self.wait is not None:
             self.wait.Wait ()
 
 #------------------------------------------------------------------------------#
