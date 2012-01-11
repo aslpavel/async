@@ -7,8 +7,8 @@ Data: 12/30/2011
 import sys
 
 __all__ = (
-    'Future', 'FutureError', 'FutureCanceled', 'FutureNotReady',
-    'Async', 'DummyAsync', 'AsyncReturn',
+    'Future', 'SucceededFuture', 'FailedFuture', 'FutureError', 'FutureCanceled', 'FutureNotReady',
+    'Async', 'DummyAsync', 'AsyncReturn', 'Serialize',
     'Core', 'CoreError', 'CoreIOError', 'CoreHUPError')
 __version__ = '0.1'
 
@@ -310,7 +310,10 @@ dummy_complete = lambda : None
 #------------------------------------------------------------------------------#
 def Async (function):
     def async (*args, **keys):
-        return CoroutineFuture (function (*args, **keys))
+        try:
+            return CoroutineFuture (function (*args, **keys))
+        except Exception:
+            return FailedFuture (sys.exc_info ())
     async.__name__ = function.__name__
     return async
 
@@ -374,6 +377,68 @@ def DummyAsync (function):
     return dummy_async
 
 #------------------------------------------------------------------------------#
+# Decorator Helper                                                             #
+#------------------------------------------------------------------------------#
+class Decorator (object):
+    def __get__ (self, instance, owner):
+        if instance is None:
+            return self
+        return self.BoundDecorator (self, instance)
+
+    def __call__ (self, *args, **keys):
+        raise NotImplementedError ()
+
+    class BoundDecorator (object):
+        __slots__ = ('method', 'instance')
+        def __init__ (self, method, instance):
+            self.method, self.instance = method, instance
+
+        def __call__ (self, *args, **keys):
+            return self.method (self.instance, *args, **keys)
+
+#------------------------------------------------------------------------------#
+# Serialize                                                                    #
+#------------------------------------------------------------------------------#
+from collections import deque
+
+class Serialize (Decorator):
+    """Serialize calls to asynchronous function"""
+    def __init__ (self, async):
+        self.async, self.uid = async, 0
+        self.queue, self.worker, self.wait = deque (), None, None
+
+    def __call__ (self, *args, **keys):
+        uid, self.uid = self.uid, self.uid + 1
+        future = Future (lambda: self.wait_uid (uid))
+        self.queue.append ((uid, future, args, keys))
+
+        if self.worker is None:
+            self.worker = self.worker_run ()
+
+        return future
+
+    @Async
+    def worker_run (self):
+        try:
+            while len (self.queue):
+                uid, future, args, keys = self.queue.popleft ()
+                try:
+                    self.wait = self.async (*args, **keys)
+                    future.ResultSet ((yield self.wait))
+                except Exception: future.ErrorSet (*sys.exc_info ())
+        finally:
+            self.wait, self.worker = None, None
+
+    def wait_uid (self, uid):
+        uid += 1
+        while len (self.queue):
+            if self.queue [0][0] > uid:
+                return
+            if self.wait is None:
+                return
+            self.wait.Wait ()
+
+#------------------------------------------------------------------------------#
 # Core                                                                         #
 #------------------------------------------------------------------------------#
 import socket, select, errno
@@ -399,12 +464,15 @@ class Core (object):
     ALL      = URGENT | WRITABLE | READABLE
 
     def Poll (self, fd, mask):
+        """Poll descriptor fd for events with mask"""
         # create future
         uid, self.uid = self.uid, self.uid + 1
         future = Future (lambda: self.wait_uid (uid))
 
         # update queue
         entry = self.poller_queue [fd]
+        if entry [0] & mask != 0:
+            raise CoreError ('Intesecting mask for the same descriptor')
         entry [0] |= mask
         entry [1].append ((mask, uid, future))
         self.poller.register (fd, entry [0])
@@ -412,6 +480,7 @@ class Core (object):
         return future
 
     def Sleep (self, delay):
+        """Sleep delay seconds"""
         # create future
         uid, self.uid = self.uid, self.uid + 1
         future = Future (lambda: self.wait_uid (uid))
@@ -422,6 +491,7 @@ class Core (object):
         return future
 
     def Run (self):
+        """Run core"""
         self.wait_uid ()
         
     def wait_uid (self, uid = None):

@@ -396,7 +396,14 @@ class AsyncTest (unittest.TestCase):
         self.assertEqual (result_future.Result (), 6)
         self.assertEqual (tuple (map (lambda f: f.IsCompleted (), (f0, f1, f2))), (True, True, True))
         self.assertEqual (context, [1, 2, 3])
-            
+
+    def testAsyncWithException (self):
+        @Async
+        def error ():
+            raise ValueError ()
+        result_future = error ()
+        self.assertTrue (result_future.IsCompleted ())
+        self.assertEqual (result_future.Error () [0], ValueError)
 
     def wait_future (self, wait):
         future = [None]
@@ -405,8 +412,45 @@ class AsyncTest (unittest.TestCase):
         future [0] = Future (wait_future)
         return future [0]
 
-class TestDummyAsync (unittest.TestCase):
-    pass
+class TestSerialize (unittest.TestCase):
+    def testSerialize (self):
+        futures = {}
+        @Serialize
+        def async (uid):
+            future = futures.get (uid)
+            if future is None:
+                future = Future ()
+                futures [uid] = future
+            return future
+
+        def finish (uid, result):
+            future = futures.get (uid)
+            if future is None:
+                future = SucceededFuture (result)
+                futures [uid] = future
+            else:
+                future.ResultSet (result)
+
+        context = []
+        for i in range (3):
+            async (i).ContinueWithFunction (lambda result: context.append (result))
+
+        self.assertEqual (context, [])
+        finish (2, 0) # 2 -> 0
+        self.assertEqual (context, [])
+        finish (0, 1) # 0 -> 1
+        self.assertEqual (context, [1])
+        finish (1, 2) # 1 -> 2
+        self.assertEqual (context, [1, 2, 0])
+
+        # serializer worker has finished
+        self.assertEqual (async.worker, None)
+
+        # restart worker
+        async (3).ContinueWithFunction (lambda result: context.append (result))
+        self.assertEqual (context, [1, 2, 0])
+        finish (3, 3)
+        self.assertEqual (context, [1, 2, 0, 3])
 
 if __name__ == '__main__':
     unittest.main ()
