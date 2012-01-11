@@ -350,6 +350,7 @@ class CoroutineFuture (Future):
 
     def resume (self, future):
         self.awaits = None
+        result, error = None, None
         try:
             while True:
                 future = self.coroutine.send (future.Result ()) if future.Error () is None \
@@ -359,10 +360,18 @@ class CoroutineFuture (Future):
                     self.awaits = future
                     future.Continue (self.resume)
                     return
-        except CoroutineResult as result: self.ResultSet (result.Value)
-        except StopIteration: self.ResultSet (None)
-        except Exception: self.ErrorSet (*sys.exc_info ())
+        except CoroutineResult as ret:
+            result = ret.Value
+        except StopIteration:
+            result = None
+        except Exception:
+            error = sys.exc_info ()
+
         self.awaits = None
+        if error is not None:
+            self.ErrorSet (*error)
+        else:
+            self.ResultSet (result)
 
 #------------------------------------------------------------------------------#
 # Dummy Async                                                                  #
