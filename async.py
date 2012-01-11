@@ -479,16 +479,20 @@ class Core (object):
 
         return future
 
-    def Sleep (self, delay):
-        """Sleep delay seconds"""
+    def SleepUntil (self, time_resume):
+        """Sleep until resume time is reached"""
         # create future
         uid, self.uid = self.uid, self.uid + 1
         future = Future (lambda: self.wait_uid (uid))
 
         # update queue
-        heappush (self.timer_queue, (time () + delay, uid, future))
+        heappush (self.timer_queue, (time_resume, uid, future))
 
         return future
+
+    def Sleep (self, delay):
+        """Sleep delay seconds"""
+        return self.SleepUntil (time () + delay)
 
     def Run (self):
         """Run core"""
