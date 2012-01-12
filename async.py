@@ -564,7 +564,7 @@ class Core (object):
                                 waiters_new.append ((m, u, f))
 
                         if mask_new:
-                            self.targets [fd] = [mask_new, waiters_new]
+                            self.poller_queue [fd] = [mask_new, waiters_new]
                             self.poller.register (mask_new)
 
                     if stop:
@@ -610,7 +610,7 @@ class Core (object):
             except socket.error as err:
                 if err.errno != errno.EAGAIN:
                     raise
-            yield self.core.Poll (self.fd, self.core.WRITTABLE)
+            yield self.core.Poll (self.fd, self.core.WRITABLE)
             AsyncReturn (self.sock.send (data))
 
         @Async
