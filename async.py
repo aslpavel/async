@@ -528,7 +528,7 @@ class Core (object):
                len (self.poller_queue) != 0):
 
             # timer queue
-            time_now, time_next = time (), None
+            time_now, time_next = time (), 0
             while len (self.timer_queue) > 0:
                 time_next = self.timer_queue [0][0]
                 if time_next > time_now:
@@ -540,8 +540,7 @@ class Core (object):
                         return
 
             # select queue
-            for fd, event in self.poller.poll (None if time_next is None else \
-                max (int (time_next - time ()) * 1000, 0)):
+            for fd, event in self.poller.poll (max ((time_next - time_now) * 1000, 0)):
                     stop = False
 
                     mask, waiters = self.poller_queue.pop (fd)
