@@ -8,17 +8,17 @@ Types:
         Main type to keep/pass/wait result of asynchronous operation
 
         Methods:
-            Wait () -> None
-                Wait for future to complete
-
-            Cancel () -> None
-                Cancel future
-
             Result () -> T
                 Get result of future
                 if future is completed successfuly returns result of the future
                 if future is faield reraise the error
                 if future is not completed reise FutureNotReady
+
+            Wait () -> None
+                Wait for future to complete
+
+            Cancel () -> None
+                Cancel future
 
             Error () -> (ExceptionType, Exception, Traceback)?
                 Error or None if future is completed successfuly or not completed
@@ -33,7 +33,7 @@ Types:
                 Continue with function "func" with result as argument
 
             ContinueWithAsync (async:Func<T, Future<TResult>>) -> Future<TResult>
-                ntinue with asynchronous function "async" and pass result as argume
+                Continue with asynchronous function "async" and pass result as argume
 
     Core:
         Asynchronous core for IO/Sleep operations
