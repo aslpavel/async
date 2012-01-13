@@ -193,7 +193,7 @@ class Future (BaseFuture):
             except Exception:
                 return FailedFuture (sys.exc_info ())
 
-        future = Future (self.wait)
+        future = Future (self.Wait)
         def complete ():
             try: future.ResultSet (cont (self))
             except Exception:
@@ -216,7 +216,7 @@ class Future (BaseFuture):
             else:
                 return FailedFuture (self.error)
 
-        future = Future (self.wait)
+        future = Future (self.Wait)
         def complete ():
             if self.error is None:
                 try: future.ResultSet (cont (self.result))
