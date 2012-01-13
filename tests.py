@@ -481,7 +481,4 @@ class TestSerialize (unittest.TestCase):
             else:
                 future.ResultSet (result)
 
-
-if __name__ == '__main__':
-    unittest.main ()
 # vim: nu ft=python columns=120 :
