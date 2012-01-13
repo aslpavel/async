@@ -538,8 +538,6 @@ class Core (object):
         while (len (self.timer_queue) != 0 or
                len (self.poller_queue) != 0):
 
-            print (time (), self.timer_queue, self.poller_queue)
-
             # timer queue
             time_now, delay = time (), None
             while len (self.timer_queue):
@@ -558,7 +556,6 @@ class Core (object):
 
             # select queue
             for fd, event in self.poller.poll (delay):
-                print (fd, event)
                 stop = False
 
                 mask, waiters = self.poller_queue.pop (fd)
