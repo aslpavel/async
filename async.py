@@ -88,6 +88,18 @@ class BaseFuture (object):
     def __bool__ (self):
         return self.IsCompleted ()
 
+    def __str__ (self):
+        """String representation"""
+        if self.IsCompleted ():
+            error = self.Error ()
+            if error is None:
+                return '|> {} {}|'.format (self.Result (), id (self))
+            else:
+                return '|~ {}:{} {}|'.format (error [0].__name__, error [1], id (self))
+        else:
+            return '|? None {}|'.format (id (self))
+    __repr__ = __str__
+
     def __enter__ (self):
         return self
 
@@ -104,6 +116,12 @@ class FutureCanceled (FutureError): pass
 # Completed Futures                                                            #
 #------------------------------------------------------------------------------#
 class CompletedFuture (BaseFuture):
+    def Continue (self, cont):
+        try:
+            return SucceededFuture (cont (self))
+        except Exception:
+            return FailedFuture (sys.exc_info ())
+
     def Wait (self):
         pass
 
@@ -119,12 +137,6 @@ class SucceededFuture (CompletedFuture):
     def __init__ (self, result = None):
         self.result = result
 
-    def Continue (self, cont):
-        try:
-            return SucceededFuture (cont (self))
-        except Exception:
-            return FailedFuture (sys.exc_info ())
-            
     def ContinueWithFunction (self, cont):
         try:
             return SucceededFuture (cont (self.result))
@@ -145,9 +157,6 @@ class FailedFuture (CompletedFuture):
 
     def __init__ (self, error):
         self.error = error
-
-    def Continue (self, cont):
-        return self
 
     def ContinueWithFunction (self, cont):
         return self
@@ -473,7 +482,8 @@ from time import time
 
 class CoreError (Exception): pass
 class CoreIOError (CoreError): pass
-class CoreHUPError (CoreError): pass
+class CoreHUPError (CoreIOError): pass
+class CoreNVALError (CoreIOError): pass
 
 class Core (object):
     def __init__ (self):
@@ -487,6 +497,7 @@ class Core (object):
     WRITABLE = select.POLLOUT
     URGENT   = select.POLLPRI
     ALL      = URGENT | WRITABLE | READABLE
+    ALL_ERRORS = select.POLLERR | select.POLLHUP | select.POLLNVAL
 
     def Poll (self, fd, mask):
         """Poll descriptor fd for events with mask"""
@@ -527,47 +538,58 @@ class Core (object):
         while (len (self.timer_queue) != 0 or
                len (self.poller_queue) != 0):
 
+            print (time (), self.timer_queue, self.poller_queue)
+
             # timer queue
-            time_now, time_next = time (), 0
-            while len (self.timer_queue) > 0:
-                time_next = self.timer_queue [0][0]
-                if time_next > time_now:
+            time_now, delay = time (), None
+            while len (self.timer_queue):
+                t, u, f = self.timer_queue [0]
+                if t > time_now:
+                    delay = (t - time_now) * 1000
                     break
-                t, u, f = heappop (self.timer_queue)
+                heappop (self.timer_queue)
                 if not f.completed:
-                    f.ResultSet (time_now)
-                    if u == uid:
-                        return
+                    f.ResultSet (t)
+                    if u == uid: return
+            if not len (self.timer_queue):
+                if not len (self.poller_queue):
+                    break
+                delay = None
 
             # select queue
-            for fd, event in self.poller.poll (max ((time_next - time_now) * 1000, 0)):
-                    stop = False
+            for fd, event in self.poller.poll (delay):
+                print (fd, event)
+                stop = False
 
-                    mask, waiters = self.poller_queue.pop (fd)
-                    self.poller.unregister (fd)
-
-                    if event & (select.POLLHUP | select.POLLERR):
-                        error = CoreIOError () if event & select.POLLERR else CoreHUPError ()
-
-                        for m, u, f in waiters:
-                            f.ErrorRaise (error)
-                            if u == uid: stop = True
+                mask, waiters = self.poller_queue.pop (fd)
+                self.poller.unregister (fd)
+                if event & self.ALL_ERRORS:
+                    if event & select.POLLHUP:
+                        error = CoreHUPError ()
+                    elif event & select.POLLNVAL:
+                        error = CoreNVALError ()
                     else:
-                        mask_new, waiters_new = 0, []
-                        for m, u, f in waiters:
-                            if m & event != 0:
-                                f.ResultSet (event)
-                                if u == uid: stop = True
-                            else:
-                                mask_new |= m
-                                waiters_new.append ((m, u, f))
+                        error = CoreError ()
 
-                        if mask_new:
-                            self.poller_queue [fd] = [mask_new, waiters_new]
-                            self.poller.register (mask_new)
+                    for m, u, f in waiters:
+                        f.ErrorRaise (error)
+                        if u == uid: stop = True
+                else:
+                    mask_new, waiters_new = 0, []
+                    for m, u, f in waiters:
+                        if m & event != 0:
+                            f.ResultSet (event)
+                            if u == uid: stop = True
+                        else:
+                            mask_new |= m
+                            waiters_new.append ((m, u, f))
 
-                    if stop:
-                        return
+                    if mask_new:
+                        self.poller_queue [fd] = [mask_new, waiters_new]
+                        self.poller.register (fd, mask_new)
+
+                if stop:
+                    return
 
     # context manager
     def __enter__ (self):
