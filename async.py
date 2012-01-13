@@ -10,7 +10,7 @@ __all__ = (
     'Future', 'SucceededFuture', 'FailedFuture', 'FutureError', 'FutureCanceled', 'FutureNotReady',
     'Async', 'DummyAsync', 'AsyncReturn', 'Serialize',
     'Core', 'CoreError', 'CoreIOError', 'CoreHUPError')
-__version__ = '0.1'
+__version__ = '0.2'
 
 #------------------------------------------------------------------------------#
 # Base Future                                                                  #
