@@ -566,7 +566,7 @@ class Core (object):
                     elif event & select.POLLNVAL:
                         error = CoreNVALError ()
                     else:
-                        error = CoreError ()
+                        error = CoreIOError ()
 
                     for m, u, f in waiters:
                         f.ErrorRaise (error)

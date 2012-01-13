@@ -8,22 +8,55 @@ Types:
         Main type to keep/pass/wait result of asynchronous operation
 
         Methods:
-            Wait () -> None`
-            Cancel () -> None`
-            Result () -> T`
-            Error () -> (ExceptionType, Exception, Traceback)?`
-            IsCompleted () -> bool`
-            Continue (cont:Func<Future<T>, TResult>) -> Future<TResult>`
-            ContinueWithFunction (func:Func<T, TResult>) -> Future<TResult>`
+            Wait () -> None
+                Wait for future to complete
+
+            Cancel () -> None
+                Cancel future
+
+            Result () -> T
+                Get result of future
+                if future is completed successfuly returns result of the future
+                if future is faield reraise the error
+                if future is not completed reise FutureNotReady
+
+            Error () -> (ExceptionType, Exception, Traceback)?
+                Error or None if future is completed successfuly or not completed
+
+            IsCompleted () -> bool
+                Check if future is completed
+                
+            Continue (cont:Func<Future<T>, TResult>) -> Future<TResult>
+                Continue with function "cont" with future as argument
+
+            ContinueWithFunction (func:Func<T, TResult>) -> Future<TResult>
+                Continue with function "func" with result as argument
+
             ContinueWithAsync (async:Func<T, Future<TResult>>) -> Future<TResult>
+                ntinue with asynchronous function "async" and pass result as argume
 
     Core:
         Asynchronous core for IO/Sleep operations
 
         Methods:
             Poll (fd:int, mask:int) -> Future<int>
+                Wait for "mask" event on descriptor "fd" on success return event mask
+                It also can raise:
+                    CoreHUPError  - the device has been disconnected
+                    CoreNVALError - the specified fd is invalid
+                    CoreIOError   - an error has occurred on the device or stream
+
             Sleep (delay:float) -> Future<float>
+                Complete future after at least "delay" seconds have passed
+
             SleepUntil (time:float) -> Future<float>
+                Compolete future after "time" (unix time) has been reached
+
+            AsyncSocketCreate (sock:socket.socket) -> AsyncSocket
+                AsyncSocket is a socket with additional asynchronous methods
+                    Accept - accept connection
+                    Recv   - recv data
+                    Send   - send data
 
 Decorators:
 -----------
