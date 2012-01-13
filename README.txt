@@ -71,10 +71,50 @@ Decorators:
 
 Examples:
 --------
-     @Async
-     def ProcessAssync ():
-        try:
-            data = yield GetAsync ()
-        except TimoutError:
-            return
-        AsyncReturn ((yield CompressAsync (data)))
+    Echo server example:
+        import socket
+        import traceback
+        from async import *
+
+        # print exception continuation function
+        def print_exc (future):
+            try: return future.Result ()
+            except Exception:
+                traceback.print_exc ()
+                raise
+
+        def main ():
+            # create core
+            with Core () as core:
+                # create server socket
+                sock = core.AsyncSocketCreate (socket.socket ())
+                sock.bind (('localhost', 8000))
+                sock.listen (10)
+
+                @Async
+                def handle (client):
+                    while True:
+                        # wait for new data
+                        data = yield client.Recv (1 << 20)
+
+                        if len (data) == 0:
+                            # connection has been closed
+                            return
+
+                        # wait for data to be send
+                        yield client.Send (data)
+
+                @Async
+                def accept ():
+                    while True:
+                        # wait for new connection
+                        client, addr = yield sock.Accept ()
+
+                        # create coroutine for handling this client
+                        handle (client).Continue (print_exc)
+
+                # start accepting coroutine
+                accept ().Continue (print_exc)
+
+        if __name__ == '__main__':
+            main ()
