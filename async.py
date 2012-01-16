@@ -501,6 +501,7 @@ class Core (object):
 
     def Poll (self, fd, mask):
         """Poll descriptor fd for events with mask"""
+
         # create future
         uid, self.uid = self.uid, self.uid + 1
         future = Future (lambda: self.wait_uid (uid))
@@ -572,10 +573,10 @@ class Core (object):
                         f.ErrorRaise (error)
                         if u == uid: stop = True
                 else:
-                    mask_new, waiters_new = 0, []
+                    mask_new, waiters_new, completed = 0, [], []
                     for m, u, f in waiters:
                         if m & event != 0:
-                            f.ResultSet (event)
+                            completed.append (f)
                             if u == uid: stop = True
                         else:
                             mask_new |= m
@@ -584,6 +585,10 @@ class Core (object):
                     if mask_new:
                         self.poller_queue [fd] = [mask_new, waiters_new]
                         self.poller.register (fd, mask_new)
+
+                    # complete separatly as continuation coluld have chaned event mask
+                    for f in completed:
+                        f.ResultSet (event)
 
                 if stop:
                     return

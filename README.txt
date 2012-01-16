@@ -1,6 +1,6 @@
 Asynchronous programming for Python
 -----------------------------------
-C# like Async/Await paradig for asynchronous programming in Python
+C# like Async/Await paradigm for asynchronous programming in Python
 
 Types:
 ------
@@ -25,7 +25,7 @@ Types:
 
             IsCompleted () -> bool
                 Check if future is completed
-                
+
             Continue (cont:Func<Future<T>, TResult>) -> Future<TResult>
                 Continue with function "cont" with future as argument
 
