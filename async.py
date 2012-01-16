@@ -46,8 +46,8 @@ class BaseFuture (object):
         signature:
             Future<Future<TResult>>.Unwrap () -> Future<TResult>
         """
-        def unwrap ()
-            return yield (yield self)
+        def unwrap ():
+            AsyncReturn ((yield (yield self)))
         return Async (unwrap) ()
 
     def Wait (self):
