@@ -37,7 +37,6 @@ class Core (object):
 
     def Poll (self, fd, mask):
         """Poll descriptor fd for events with mask"""
-
         # create future
         uid, self.uid = self.uid, self.uid + 1
         future = Future (lambda: self.wait_uid (uid))

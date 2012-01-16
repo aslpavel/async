@@ -40,6 +40,16 @@ class BaseFuture (object):
         """
         raise NotImplementedError ()
 
+    def Unwrap (self):
+        """Unwrap
+
+        signature:
+            Future<Future<TResult>>.Unwrap () -> Future<TResult>
+        """
+        def unwrap ()
+            return yield (yield self)
+        return Async (unwrap) ()
+
     def Wait (self):
         """Wait for this future to complete
 
