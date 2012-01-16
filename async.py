@@ -59,9 +59,9 @@ class BaseFuture (object):
     def Result (self):
         """Get result of this future
 
-        if future is completed successfuly returns result of the future
-        if future is faield reraise the error
-        if future is not completed reise FutureNotReady
+        if future is completed successfully returns result of the future
+        if future is failed reraise the error
+        if future is not completed reraise FutureNotReady
 
         signature:
             Result () -> T
@@ -69,7 +69,7 @@ class BaseFuture (object):
         raise NotImplementedError ()
 
     def Error (self):
-        """Error or None if future is completed successfuly or not completed
+        """Error or None if future is completed successfully or not completed
 
         signature:
             Error () -> (ExceptionType, Exception, Traceback)?

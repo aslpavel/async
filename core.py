@@ -21,6 +21,7 @@ class CoreNVALError (CoreIOError): pass
 # Core                                                                         #
 #------------------------------------------------------------------------------#
 class Core (object):
+    """Asynchronous application core"""
     def __init__ (self):
         self.uid = 0
         self.timer_queue = []
@@ -43,8 +44,8 @@ class Core (object):
 
         # update queue
         entry = self.poller_queue [fd]
-        if entry [0] & mask != 0:
-            raise CoreError ('Intesecting mask for the same descriptor')
+        if entry [0] & mask:
+            raise CoreError ('Intersecting mask for the same descriptor')
         entry [0] |= mask
         entry [1].append ((mask, uid, future))
         self.poller.register (fd, entry [0])
@@ -110,7 +111,7 @@ class Core (object):
                 else:
                     mask_new, waiters_new, completed = 0, [], []
                     for m, u, f in waiters:
-                        if m & event != 0:
+                        if m & event:
                             completed.append (f)
                             if u == uid: stop = True
                         else:
@@ -121,7 +122,7 @@ class Core (object):
                         self.poller_queue [fd] = [mask_new, waiters_new]
                         self.poller.register (fd, mask_new)
 
-                    # complete separatly as continuation coluld have chaned event mask
+                    # complete separately as continuation could have changed event mask
                     for f in completed:
                         f.ResultSet (event)
 
