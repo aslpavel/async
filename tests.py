@@ -2,6 +2,7 @@
 import sys
 import unittest
 from .async import *
+from .core import *
 
 class FutureTest (unittest.TestCase):
     # Succeded

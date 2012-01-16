@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
+from . import async, core
+
 from .async import *
-from .async import __all__, __version__
+from .core import *
+
+__all__ = async.__all__ + core.__all__
+__version__ = async.__version__
 
 # load test protocol
 def load_tests (loader, tests, pattern):
