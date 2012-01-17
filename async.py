@@ -46,9 +46,7 @@ class BaseFuture (object):
         signature:
             Future<Future<TResult>>.Unwrap () -> Future<TResult>
         """
-        def unwrap ():
-            AsyncReturn ((yield (yield self)))
-        return Async (unwrap) ()
+        return UnwrapFuture (self)
 
     def Wait (self):
         """Wait for this future to complete
@@ -95,6 +93,10 @@ class BaseFuture (object):
         raise NotImplementedError ()
 
     def __bool__ (self):
+        return self.IsCompleted ()
+
+    def __nonzero__ (self):
+        """Python 2 compatibility boolean cast"""
         return self.IsCompleted ()
 
     def __str__ (self):
@@ -480,6 +482,39 @@ class Serialize (Decorator):
 
         if self.wait is not None:
             self.wait.Wait ()
+
+#------------------------------------------------------------------------------#
+# Unwrap Future                                                                #
+#------------------------------------------------------------------------------#
+class UnwrapFuture (Future):
+    """Unwrap future helper"""
+    def __init__ (self, future):
+        Future.__init__ (self)
+
+        self.future = future
+        future.Continue (self.outer_cont)
+
+    def Wait (self):
+        while self.future is not None:
+            self.future.Wait ()
+
+    def outer_cont (self, outer_future):
+        error = outer_future.Error ()
+        if error is None:
+            inner_future = outer_future.Result ()
+            inner_future.Continue (self.inner_cont)
+            self.future = inner_future
+        else:
+            self.future = None
+            self.ErrorSet (*error)
+
+    def inner_cont (self, inner_future):
+        self.future = None
+        error = inner_future.Error ()
+        if error is None:
+            self.ResultSet (inner_future.Result ())
+        else:
+            self.ErrorSet (*error)
 
 #------------------------------------------------------------------------------#
 # Compatibility                                                                #
