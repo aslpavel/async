@@ -26,6 +26,9 @@ Types:
             IsCompleted () -> bool
                 Check if future is completed
 
+            Unwrap () -> Future<TResult>
+                Unwrap nested future. For example Future<Future<T>> -> Future<T>
+
             Continue (cont:Func<Future<T>, TResult>) -> Future<TResult>
                 Continue with function "cont" with future as argument
 
@@ -50,7 +53,7 @@ Types:
                 Complete future after at least "delay" seconds have passed
 
             SleepUntil (time:float) -> Future<float>
-                Compolete future after "time" (unix time) has been reached
+                Complete future after "time" (unix time) has been reached
 
             AsyncSocketCreate (sock:socket.socket) -> AsyncSocket
                 AsyncSocket is a socket with additional asynchronous methods

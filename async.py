@@ -88,7 +88,7 @@ class BaseFuture (object):
         """Check if future is completed
 
         signature:
-            IsCompoleted () -> bool
+            IsCompleted () -> bool
         """
         raise NotImplementedError ()
 
