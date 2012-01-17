@@ -7,7 +7,7 @@ Data: 12/30/2011
 import sys
 
 __all__ = ('Future', 'SucceededFuture', 'FailedFuture', 'FutureError', 'FutureCanceled', 'FutureNotReady',
-    'Async', 'DummyAsync', 'AsyncReturn', 'Serialize')
+    'Async', 'DummyAsync', 'AsyncReturn', 'Serialize', 'Delegate')
 
 __version__ = '0.2'
 
@@ -412,6 +412,8 @@ def DummyAsync (function):
 # Decorator Helper                                                             #
 #------------------------------------------------------------------------------#
 class Decorator (object):
+    __slots__ = tuple ()
+
     def __get__ (self, instance, owner):
         if instance is None:
             return self
@@ -430,6 +432,47 @@ class Decorator (object):
 
         def __getattr__ (self, attr):
             return getattr (self.unbound, attr)
+
+#------------------------------------------------------------------------------#
+# Delegate                                                                     #
+#------------------------------------------------------------------------------#
+class Delegate (object):
+    """Delegate decorator
+
+    Convert asynchronous method to Delegate wich if called calls
+    asynchrnous method synchronously and has specail method Async to call
+    decorated function
+    """
+    __slots__ = ('async',)
+
+    def __init__ (self, async):
+        self.async = async
+
+    def __get__ (self, instance, owner):
+        if instance is None:
+            return self.async
+        return self.BoundDelegate (self, instance)
+
+    def __call__ (self, *args, **keys):
+        future = self.async (*args, **keys)
+        future.Wait ()
+        return future.Result ()
+
+    def Async (self, *args, **keys):
+        return self.async (*args, **keys)
+
+    class BoundDelegate (object):
+        __slots__ = ('base', 'instance')
+
+        def __init__ (self, base, instance):
+            self.base = base
+            self.instance = instance
+
+        def __call__ (self, *args, **keys):
+            return self.base (self.instance, *args, **keys)
+
+        def Async (self, *args, **keys):
+            return self.base.Async (self.instance, *args, **keys)
 
 #------------------------------------------------------------------------------#
 # Serialize                                                                    #
