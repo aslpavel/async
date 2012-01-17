@@ -15,6 +15,8 @@ __version__ = '0.2'
 # Base Future                                                                  #
 #------------------------------------------------------------------------------#
 class BaseFuture (object):
+    __slots__ = tuple ()
+
     """interface Future<out T>"""
     def Continue (self, cont):
         """Continue with function "cont" with this future as argument
@@ -127,6 +129,7 @@ class FutureCanceled (FutureError): pass
 # Completed Futures                                                            #
 #------------------------------------------------------------------------------#
 class CompletedFuture (BaseFuture):
+    __slots__ = tuple ()
     def Continue (self, cont):
         try:
             return SucceededFuture (cont (self))
@@ -488,6 +491,8 @@ class Serialize (Decorator):
 #------------------------------------------------------------------------------#
 class UnwrapFuture (Future):
     """Unwrap future helper"""
+    __slots__ = Future.__slots__ + ('future',)
+
     def __init__ (self, future):
         Future.__init__ (self)
 

@@ -535,6 +535,33 @@ class TestUnwrap (unittest.TestCase):
         f.Wait ()
         self.assertEqual (f.Error (), f1.Error ())
 
+class SlotsTest (unittest.TestCase):
+    def testSlots (self):
+        # Future
+        f = Future ()
+
+        # SucceededFuture
+        f_succ = SucceededFuture (0)
+
+        # FailedFuture
+        try: raise ValueError ()
+        except Exception:
+            f_error = FailedFuture (sys.exc_info ())
+
+        # UnwparFuture
+        f_unwrap = f.Unwrap ()
+
+        # AsyncFuture
+        @Async
+        def f_async ():
+            yield f
+        f_async = f_async ()
+
+        futures = (f, f_succ, f_error, f_unwrap, f_async)
+        for future in futures:
+            with self.assertRaises (AttributeError):
+                future.some_not_existing_field = True
+
 def WaitFuture (result = None, error = None):
     context = [None]
     def wait ():
