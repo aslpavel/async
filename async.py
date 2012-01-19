@@ -15,9 +15,10 @@ __version__ = '0.2'
 # Base Future                                                                  #
 #------------------------------------------------------------------------------#
 class BaseFuture (object):
+    """interface Future<out T>"""
+
     __slots__ = tuple ()
 
-    """interface Future<out T>"""
     def Continue (self, cont):
         """Continue with function "cont" with this future as argument
 
@@ -439,8 +440,8 @@ class Decorator (object):
 class Delegate (object):
     """Delegate decorator
 
-    Convert asynchronous method to Delegate wich if called calls
-    asynchrnous method synchronously and has specail method Async to call
+    Convert asynchronous method to Delegate which if called calls
+    asynchronous method synchronously and has special method Async to call
     decorated function
     """
     __slots__ = ('async',)
