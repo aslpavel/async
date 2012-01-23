@@ -334,10 +334,7 @@ dummy_complete = lambda : None
 #------------------------------------------------------------------------------#
 def Async (function):
     def async (*args, **keys):
-        try:
-            return CoroutineFuture (function (*args, **keys))
-        except Exception:
-            return FailedFuture (sys.exc_info ())
+        return CoroutineFuture (function (*args, **keys))
     async.__name__ = function.__name__
     return async
 
