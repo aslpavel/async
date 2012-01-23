@@ -402,6 +402,7 @@ class AsyncTest (unittest.TestCase):
         @Async
         def error ():
             raise ValueError ()
+            yield CompletedFuture (1)
         result_future = error ()
         self.assertTrue (result_future.IsCompleted ())
         self.assertEqual (result_future.Error () [0], ValueError)
