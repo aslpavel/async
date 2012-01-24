@@ -209,6 +209,7 @@ class Future (BaseFuture):
                 return FailedFuture (sys.exc_info ())
 
         future = Future (self.Wait)
+
         def complete ():
             try: future.ResultSet (cont (self))
             except Exception:
@@ -232,6 +233,7 @@ class Future (BaseFuture):
                 return FailedFuture (self.error)
 
         future = Future (self.Wait)
+
         def complete ():
             if self.error is None:
                 try: future.ResultSet (cont (self.result))
@@ -254,30 +256,7 @@ class Future (BaseFuture):
             else:
                 return FailedFuture (self.error)
 
-        async_future = [None]
-
-        def wait ():
-            self.Wait ()
-            if self.error is None:
-                async_future [0].Wait ()
-
-        future = Future (wait)
-
-        def async_continue (async_future):
-            async_error = async_future.Error ()
-            if async_error is None:
-                future.ResultSet (async_future.Result ())
-            else:
-                future.ErrorSet (*async_error)
-
-        def complete ():
-            if self.error is None:
-                async_future [0] = async (self.result).Continue (async_continue)
-            else:
-                future.ErrorSet (*self.error)
-        self.complete = complete
-
-        return future
+        return ContinueWithAsyncFuture (self, async)
 
     def Wait (self):
         if not self.completed:
@@ -333,44 +312,36 @@ dummy_complete = lambda : None
 # Async                                                                        #
 #------------------------------------------------------------------------------#
 def Async (function):
-    def async (*args, **keys):
-        return CoroutineFuture (function (*args, **keys))
-    async.__name__ = function.__name__
-    return async
+    return lambda *args, **keys: CoroutineFuture (function (*args, **keys))
 
+class CoroutineResult (BaseException): pass
 def AsyncReturn (value):
     raise CoroutineResult (value)
 
-class CoroutineResult (BaseException):
-    __slots__ = ('Value', )
-
-    def __init__ (self, value):
-        self.Value = value
-
 class CoroutineFuture (Future):
-    __slots__ = Future.__slots__ + ('coroutine', 'awaits', )
+    __slots__ = Future.__slots__ + ('coroutine', )
 
     def __init__ (self, coroutine):
         Future.__init__ (self)
 
         self.coroutine = coroutine
-        self.awaits = None
+        self.wait = None
         self.resume (SucceededFuture (None))
 
     def Wait (self):
-        while self.awaits is not None:
-            self.awaits.Wait ()
+        while self.wait is not None:
+            self.wait.Wait ()
         if not self.IsCompleted ():
             raise RuntimeError ('you cann\'t wait inside bound generator')
 
     def Cancel (self):
         if not self.IsCompleted ():
-            if self.awaits is None:
+            if self.wait is None:
                 raise FutureCanceled () # we are inside generator
-            self.awaits.Cancel ()
+            self.wait.Cancel ()
 
     def resume (self, future):
-        self.awaits = None
+        self.wait = None
         result, error = None, None
         try:
             while True:
@@ -378,17 +349,17 @@ class CoroutineFuture (Future):
                     else self.coroutine.throw (*future.Error ())
 
                 if not future.IsCompleted ():
-                    self.awaits = future
+                    self.wait = future
                     future.Continue (self.resume)
                     return
         except CoroutineResult as ret:
-            result = ret.Value
+            result = ret.args [0]
         except StopIteration:
             result = None
         except Exception:
             error = sys.exc_info ()
 
-        self.awaits = None
+        self.wait = None
         if error is not None:
             self.ErrorSet (*error)
         else:
@@ -559,6 +530,38 @@ class UnwrapFuture (Future):
         error = inner_future.Error ()
         if error is None:
             self.ResultSet (inner_future.Result ())
+        else:
+            self.ErrorSet (*error)
+
+#------------------------------------------------------------------------------#
+# Continue With Async Future                                                   #
+#------------------------------------------------------------------------------#
+class ContinueWithAsyncFuture (Future):
+    __slots__ = Future.__slots__ + ('async',)
+
+    def __init__ (self, future, async):
+        Future.__init__ (self)
+
+        self.async, self.wait = async, future
+        future.Continue (self.future_cont)
+
+    def Wait (self):
+        while self.wait is not None:
+            self.wait.Wait ()
+
+    def future_cont (self, future):
+        error = future.Error ()
+        if error is None:
+            self.wait = self.async (self.wait.Result ()).Continue (self.async_cont)
+        else:
+            self.wait = None
+            self.ErrorSet (*error)
+
+    def async_cont (self, future):
+        self.wait = None
+        error = future.Error ()
+        if error is None:
+            self.ResultSet (future.Result ())
         else:
             self.ErrorSet (*error)
 

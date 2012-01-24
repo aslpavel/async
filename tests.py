@@ -552,13 +552,17 @@ class SlotsTest (unittest.TestCase):
         # UnwparFuture
         f_unwrap = f.Unwrap ()
 
+
         # AsyncFuture
         @Async
-        def f_async ():
+        def f_async_ ():
             yield f
-        f_async = f_async ()
+        f_async = f_async_ ()
 
-        futures = (f, f_succ, f_error, f_unwrap, f_async)
+        # Continue with Async
+        f_cont_async = f_unwrap.ContinueWithAsync (f_async_)
+
+        futures = (f, f_succ, f_error, f_unwrap, f_async, f_cont_async)
         for future in futures:
             with self.assertRaises (AttributeError):
                 future.some_not_existing_field = True
