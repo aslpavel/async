@@ -236,7 +236,8 @@ class Future (BaseFuture):
 
         def complete ():
             if self.error is None:
-                try: future.ResultSet (cont (self.result))
+                try:
+                    future.ResultSet (cont (self.result))
                 except Exception:
                     future.ErrorSet (*sys.exc_info ())
             else:
