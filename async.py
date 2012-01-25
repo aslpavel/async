@@ -6,8 +6,8 @@ Data: 12/30/2011
 """
 import sys
 
-__all__ = ('Future', 'SucceededFuture', 'FailedFuture', 'FutureError', 'FutureCanceled', 'FutureNotReady',
-    'Async', 'DummyAsync', 'AsyncReturn', 'Serialize', 'Delegate')
+__all__ = ('Future', 'SucceededFuture', 'FailedFuture', 'RaisedFuture',
+    'FutureError', 'FutureCanceled', 'FutureNotReady', 'Async', 'DummyAsync', 'AsyncReturn', 'Serialize', 'Delegate')
 
 __version__ = '0.2'
 
@@ -185,6 +185,14 @@ class FailedFuture (CompletedFuture):
     def Error (self):
         return self.error
 
+class RaisedFuture (FailedFuture):
+    __slots__ = FailedFuture.__slots__
+
+    def __init__ (self, error):
+        try: raise error
+        except Exception:
+            exc_info = sys.exc_info ()
+        FailedFuture.__init__ (self, exc_info)
 #------------------------------------------------------------------------------#
 # Future                                                                       #
 #------------------------------------------------------------------------------#

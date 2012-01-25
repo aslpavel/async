@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import sys
 import socket, select, errno
 from collections import defaultdict
 from heapq import heappush, heappop
@@ -26,7 +27,7 @@ class Core (object):
         self.uid = 0
         self.timer_queue = []
 
-        self.poller_queue = defaultdict (lambda: [0, []])
+        self.poll_queue = {}
         self.poller = select.poll ()
 
     READABLE = select.POLLIN
@@ -37,19 +38,38 @@ class Core (object):
 
     def Poll (self, fd, mask):
         """Poll descriptor fd for events with mask"""
+        if mask is 0:
+            return RaisedFuture ('mask is empty')
+
         # create future
         uid, self.uid = self.uid, self.uid + 1
-        future = Future (lambda: self.wait_uid (uid))
+        entry = (uid, Future (lambda: self.wait_uid (uid)))
+        r_entry, w_entry = self.poll_queue.get (fd, (None, None))
 
-        # update queue
-        entry = self.poller_queue [fd]
-        if entry [0] & mask:
-            raise CoreError ('Intersecting mask for the same descriptor')
-        entry [0] |= mask
-        entry [1].append ((mask, uid, future))
-        self.poller.register (fd, entry [0])
+        # queue read
+        poll_mask = 0
+        if mask & self.READABLE:
+            if r_entry is not None:
+                return RaisedFuture (CoreError ('same fd has already been queued for reading'))
+            poll_mask = self.READABLE
+            r_entry = entry
+        elif r_entry is not None:
+            poll_mask = self.READABLE
 
-        return future
+        # queue write
+        if mask & self.WRITABLE:
+            if w_entry is not None:
+                return RaisedFuture (CoreError ('same fd has already been queued for writing'))
+            poll_mask |= self.WRITABLE
+            w_entry = entry
+        elif w_entry is not None:
+            poll_mask |= self.WRITABLE
+
+        # update poll
+        self.poll_queue [fd] = (r_entry, w_entry)
+        self.poller.register (fd, poll_mask)
+
+        return entry [1]
 
     def SleepUntil (self, time_resume):
         """Sleep until resume time is reached"""
@@ -70,61 +90,75 @@ class Core (object):
         """Run core"""
         self.wait_uid ()
         
-    def wait_uid (self, uid = None):
-        while (len (self.timer_queue) != 0 or
-               len (self.poller_queue) != 0):
-
+    def wait_uid (self, await_uid = None):
+        while True:
             # timer queue
             time_now, delay = time (), None
-            while len (self.timer_queue):
-                t, u, f = self.timer_queue [0]
-                if t > time_now:
-                    delay = (t - time_now) * 1000
+            while True:
+                if not self.timer_queue:
+                    delay = None
                     break
+                # pick next event
+                time_resume, uid, future = self.timer_queue [0]
+                if time_resume > time_now:
+                    delay = (time_resume - time_now) * 1000
+                    break
+                # pop from queue
                 heappop (self.timer_queue)
-                if not f.completed:
-                    f.ResultSet (t)
-                    if u == uid: return
-            if not len (self.timer_queue):
-                if not len (self.poller_queue):
-                    break
-                delay = None
+                # resolve future
+                future.ResultSet (time_resume)
+                # complete if its awaited uid
+                if uid == await_uid: return
 
             # select queue
+            if not self.poll_queue and delay is None:
+                    return
             for fd, event in self.poller.poll (delay):
                 stop = False
-
-                mask, waiters = self.poller_queue.pop (fd)
-                self.poller.unregister (fd)
                 if event & self.ALL_ERRORS:
-                    if event & select.POLLHUP:
-                        error = CoreHUPError ()
-                    elif event & select.POLLNVAL:
-                        error = CoreNVALError ()
-                    else:
-                        error = CoreIOError ()
+                    try:
+                        error = CoreHUPError () if event & select.POLLHUP else \
+                                CoreNVALError () if event & select.POLLNVAL else \
+                                CoreIOError ()
+                        raise error
+                    except CoreError:
+                        error = sys.exc_info ()
 
-                    for m, u, f in waiters:
-                        f.ErrorRaise (error)
-                        if u == uid: stop = True
+                    for entry in self.poll_queue.pop (fd):
+                        if entry is not None:
+                            uid, future = entry
+                            future.ErrorSet (*error)
+                            if uid == await_uid:
+                                stop = True
+
+                    self.poller.unregister (fd)
                 else:
-                    mask_new, waiters_new, completed = 0, [], []
-                    for m, u, f in waiters:
-                        if m & event:
-                            completed.append (f)
-                            if u == uid: stop = True
-                        else:
-                            mask_new |= m
-                            waiters_new.append ((m, u, f))
+                    mask, completed = 0, []
 
-                    if mask_new:
-                        self.poller_queue [fd] = [mask_new, waiters_new]
-                        self.poller.register (fd, mask_new)
+                    # readable
+                    r_entry, w_entry = self.poll_queue.pop (fd)
+                    if event & select.POLLIN:
+                        completed.append (r_entry)
+                    elif r_entry is not None:
+                        mask = select.POLLIN
+
+                    # writable
+                    if event & select.POLLOUT:
+                        completed.append (w_entry)
+                    elif w_entry is not None:
+                        mask |= select.POLLOUT
+
+                    # update poll
+                    if mask:
+                        self.poller.register (fd, mask)
+                    else:
+                        self.poller.unregister (fd)
 
                     # complete separately as continuation could have changed event mask
-                    for f in completed:
-                        f.ResultSet (event)
-
+                    for uid, future in completed:
+                        future.ResultSet (event)
+                        if uid == await_uid:
+                            stop = True
                 if stop:
                     return
 
