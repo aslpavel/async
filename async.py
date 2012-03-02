@@ -114,6 +114,11 @@ class BaseFuture (object):
             return '|? None {}|'.format (id (self))
     __repr__ = __str__
 
+    def __invert__ (self):
+        """Resolve future synchronously"""
+        self.Wait ()
+        return self.Result ()
+
     def __enter__ (self):
         return self
 
