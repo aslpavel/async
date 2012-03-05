@@ -173,51 +173,54 @@ class Core (object):
 
     def AsyncSocketCreate (self, sock):
         """Asynchronous socket wrapper"""
-        return self.AsyncSocket (self, sock)
+        return AsyncSocket (self, sock)
 
-    class AsyncSocket (object):
-        def __init__ (self, core, sock):
-            self.core = core
-            self.sock = sock
-            self.fd = sock.fileno ()
-            sock.setblocking (False)
+#------------------------------------------------------------------------------#
+# Asynchronous Socket                                                          #
+#------------------------------------------------------------------------------#
+class AsyncSocket (object):
+    def __init__ (self, core, sock):
+        self.core = core
+        self.sock = sock
+        self.fd = sock.fileno ()
+        sock.setblocking (False)
 
-        @Async
-        def Recv (self, count):
-            try:
-                AsyncReturn (self.sock.recv (count))
-            except socket.error as err:
-                if err.errno != errno.EAGAIN:
-                    raise
-            try:
-                yield self.core.Poll (self.fd, self.core.READABLE)
-                AsyncReturn (self.sock.recv (count))
-            except CoreHUPError:
-                AsyncReturn (b'')
-
-        @Async
-        def Send (self, data):
-            try:
-                AsyncReturn (self.sock.send (data))
-            except socket.error as err:
-                if err.errno != errno.EAGAIN:
-                    raise
-            yield self.core.Poll (self.fd, self.core.WRITABLE)
-            AsyncReturn (self.sock.send (data))
-
-        @Async
-        def Accept (self):
-            try:
-                client, addr = self.sock.accept ()
-                AsyncReturn ((self.core.AsyncSocketCreate (client), addr))
-            except socket.error as err:
-                if err.errno != errno.EAGAIN:
-                    raise
+    @Async
+    def Recv (self, count):
+        try:
+            AsyncReturn (self.sock.recv (count))
+        except socket.error as err:
+            if err.errno != errno.EAGAIN:
+                raise
+        try:
             yield self.core.Poll (self.fd, self.core.READABLE)
+            AsyncReturn (self.sock.recv (count))
+        except CoreHUPError:
+            AsyncReturn (b'')
+
+    @Async
+    def Send (self, data):
+        try:
+            AsyncReturn (self.sock.send (data))
+        except socket.error as err:
+            if err.errno != errno.EAGAIN:
+                raise
+        yield self.core.Poll (self.fd, self.core.WRITABLE)
+        AsyncReturn (self.sock.send (data))
+
+    @Async
+    def Accept (self):
+        try:
             client, addr = self.sock.accept ()
             AsyncReturn ((self.core.AsyncSocketCreate (client), addr))
+        except socket.error as err:
+            if err.errno != errno.EAGAIN:
+                raise
+        yield self.core.Poll (self.fd, self.core.READABLE)
+        client, addr = self.sock.accept ()
+        AsyncReturn ((self.core.AsyncSocketCreate (client), addr))
 
-        def __getattr__ (self, attr):
-            return getattr (self.sock, attr)
+    def __getattr__ (self, attr):
+        return getattr (self.sock, attr)
 
 # vim: nu ft=python columns=120 :
