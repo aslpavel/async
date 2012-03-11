@@ -88,7 +88,23 @@ class Core (object):
 
     def Run (self):
         """Run core"""
-        self.wait_uid ()
+        try:
+            self.wait_uid ()
+        except Exception:
+            error = sys.exc_info ()
+
+            # resolve time queue
+            for time_resume, uid, future in self.timer_queue:
+                future.ErrorSet (*error)
+
+            # resolve poll queue
+            for entries in self.poll_queue:
+                for entry in entries:
+                    if entry is None:
+                        continue
+                    entry [1].ErrorSet (*error)
+
+            raise
         
     def wait_uid (self, await_uid = None):
         while True:
@@ -124,8 +140,10 @@ class Core (object):
                     except CoreError:
                         error = sys.exc_info ()
 
-                    for entry in self.poll_queue.pop (fd):
-                        if entry is not None:
+                    for entries in self.poll_queue.pop (fd):
+                        for entry in entries:
+                            if entry is None:
+                                continue
                             uid, future = entry
                             future.ErrorSet (*error)
                             if uid == await_uid:
