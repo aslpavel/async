@@ -9,7 +9,7 @@ import sys
 __all__ = ('Future', 'SucceededFuture', 'FailedFuture', 'RaisedFuture',
     'FutureError', 'FutureCanceled', 'FutureNotReady', 'Async', 'DummyAsync', 'AsyncReturn', 'Serialize', 'Delegate')
 
-__version__ = '0.2'
+__version__ = '0.3'
 
 #------------------------------------------------------------------------------#
 # Base Future                                                                  #
@@ -226,7 +226,7 @@ class Future (BaseFuture):
         def complete ():
             try: future.ResultSet (cont (self))
             except Exception:
-                future.ErrorSet (*sys.exc_info ())
+                future.ErrorSet (sys.exc_info ())
         self.complete = complete
 
         return future
@@ -252,9 +252,9 @@ class Future (BaseFuture):
                 try:
                     future.ResultSet (cont (self.result))
                 except Exception:
-                    future.ErrorSet (*sys.exc_info ())
+                    future.ErrorSet (sys.exc_info ())
             else:
-                future.ErrorSet (*self.error)
+                future.ErrorSet (self.error)
         self.complete = complete
 
         return future
@@ -304,21 +304,22 @@ class Future (BaseFuture):
         if self.complete is not None:
             self.complete ()
 
-    def ErrorSet (self, et, eo, tb):
+    def ErrorSet (self, error):
         if self.completed: return
         self.completed = True
 
-        self.error = (et, eo, tb)
+        self.error = error
         if self.complete is not None:
             self.complete ()
 
-    def ErrorRaise (self, error):
+    def ErrorRaise (self, exception):
         if self.completed: return
 
-        try: raise error
-        except Exception: et, eo, tb = sys.exc_info ()
+        try: raise exception
+        except Exception:
+            error = sys.exc_info ()
 
-        self.ErrorSet (et, eo, tb)
+        self.ErrorSet (error)
 
 dummy_complete = lambda : None
 
@@ -375,7 +376,7 @@ class CoroutineFuture (Future):
 
         self.wait = None
         if error is not None:
-            self.ErrorSet (*error)
+            self.ErrorSet (error)
         else:
             self.ResultSet (result)
 
@@ -488,7 +489,7 @@ class Serialize (Decorator):
     @Async
     def worker_run (self, future):
         try: future.ResultSet ((yield self.wait))
-        except Exception: future.ErrorSet (*sys.exc_info ())
+        except Exception: future.ErrorSet (sys.exc_info ())
 
         try:
             while len (self.queue):
@@ -496,7 +497,7 @@ class Serialize (Decorator):
                 try:
                     self.wait = self.async (*args, **keys)
                     future.ResultSet ((yield self.wait))
-                except Exception: future.ErrorSet (*sys.exc_info ())
+                except Exception: future.ErrorSet (sys.exc_info ())
         finally:
             self.wait, self.worker = None, None
 
@@ -537,7 +538,7 @@ class UnwrapFuture (Future):
             self.future = inner_future
         else:
             self.future = None
-            self.ErrorSet (*error)
+            self.ErrorSet (error)
 
     def inner_cont (self, inner_future):
         self.future = None
@@ -545,7 +546,7 @@ class UnwrapFuture (Future):
         if error is None:
             self.ResultSet (inner_future.Result ())
         else:
-            self.ErrorSet (*error)
+            self.ErrorSet (error)
 
 #------------------------------------------------------------------------------#
 # Continue With Async Future                                                   #
@@ -569,7 +570,7 @@ class ContinueWithAsyncFuture (Future):
             self.wait = self.async (self.wait.Result ()).Continue (self.async_cont)
         else:
             self.wait = None
-            self.ErrorSet (*error)
+            self.ErrorSet (error)
 
     def async_cont (self, future):
         self.wait = None
@@ -577,7 +578,7 @@ class ContinueWithAsyncFuture (Future):
         if error is None:
             self.ResultSet (future.Result ())
         else:
-            self.ErrorSet (*error)
+            self.ErrorSet (error)
 
 #------------------------------------------------------------------------------#
 # Compatibility                                                                #

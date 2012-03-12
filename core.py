@@ -95,14 +95,14 @@ class Core (object):
 
             # resolve time queue
             for time_resume, uid, future in self.timer_queue:
-                future.ErrorSet (*error)
+                future.ErrorSet (error)
 
             # resolve poll queue
             for entries in self.poll_queue:
                 for entry in entries:
                     if entry is None:
                         continue
-                    entry [1].ErrorSet (*error)
+                    entry [1].ErrorSet (error)
 
             raise
         
@@ -145,7 +145,7 @@ class Core (object):
                             if entry is None:
                                 continue
                             uid, future = entry
-                            future.ErrorSet (*error)
+                            future.ErrorSet (error)
                             if uid == await_uid:
                                 stop = True
 
