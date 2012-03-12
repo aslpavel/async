@@ -140,14 +140,13 @@ class Core (object):
                     except CoreError:
                         error = sys.exc_info ()
 
-                    for entries in self.poll_queue.pop (fd):
-                        for entry in entries:
-                            if entry is None:
-                                continue
-                            uid, future = entry
-                            future.ErrorSet (error)
-                            if uid == await_uid:
-                                stop = True
+                    for entry in self.poll_queue.pop (fd):
+                        if entry is None:
+                            continue
+                        uid, future = entry
+                        future.ErrorSet (error)
+                        if uid == await_uid:
+                            stop = True
 
                     self.poller.unregister (fd)
                 else:
