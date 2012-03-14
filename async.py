@@ -8,9 +8,6 @@ import sys
 
 __all__ = ('Future', 'SucceededFuture', 'FailedFuture', 'RaisedFuture',
     'FutureError', 'FutureCanceled', 'FutureNotReady', 'Async', 'DummyAsync', 'AsyncReturn', 'Serialize', 'Delegate')
-
-__version__ = '0.3'
-
 #------------------------------------------------------------------------------#
 # Base Future                                                                  #
 #------------------------------------------------------------------------------#
