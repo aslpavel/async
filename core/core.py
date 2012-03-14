@@ -1,23 +1,15 @@
 # -*- coding: utf-8 -*-
 import sys
-import socket, select, errno
-from collections import defaultdict
+import select
 from heapq import heappush, heappop
 from time import time
 
-# local
-from .async import *
+from .error import *
+from .file import *
+from .socket import *
+from ..async import *
 
-__all__ = ('Core', 'CoreError', 'CoreIOError', 'CoreHUPError', 'CoreNVALError')
-
-#------------------------------------------------------------------------------#
-# Errors                                                                       #
-#------------------------------------------------------------------------------#
-class CoreError (Exception): pass
-class CoreIOError (CoreError): pass
-class CoreHUPError (CoreIOError): pass
-class CoreNVALError (CoreIOError): pass
-
+__all__ = ('Core',)
 #------------------------------------------------------------------------------#
 # Core                                                                         #
 #------------------------------------------------------------------------------#
@@ -74,9 +66,16 @@ class Core (object):
 
         return entry [1]
 
+    #--------------------------------------------------------------------------#
+    # Factories                                                                #
+    #--------------------------------------------------------------------------#
     def AsyncSocketCreate (self, sock):
         """Asynchronous socket wrapper"""
         return AsyncSocket (self, sock)
+
+    def AsyncFileCreate (self, fd):
+        """Asynchronous file wrapper"""
+        return AsyncFile (self, fd)
 
     #--------------------------------------------------------------------------#
     # Timer Interface                                                          #
@@ -209,53 +208,5 @@ class Core (object):
         if et is None:
             self.Run ()
         return False
-
-#------------------------------------------------------------------------------#
-# Asynchronous Socket                                                          #
-#------------------------------------------------------------------------------#
-class AsyncSocket (object):
-    def __init__ (self, core, sock):
-        self.core = core
-        self.sock = sock
-        self.fd = sock.fileno ()
-        sock.setblocking (False)
-
-    @Async
-    def Recv (self, count):
-        try:
-            AsyncReturn (self.sock.recv (count))
-        except socket.error as err:
-            if err.errno != errno.EAGAIN:
-                raise
-        try:
-            yield self.core.Poll (self.fd, self.core.READABLE)
-            AsyncReturn (self.sock.recv (count))
-        except CoreHUPError:
-            AsyncReturn (b'')
-
-    @Async
-    def Send (self, data):
-        try:
-            AsyncReturn (self.sock.send (data))
-        except socket.error as err:
-            if err.errno != errno.EAGAIN:
-                raise
-        yield self.core.Poll (self.fd, self.core.WRITABLE)
-        AsyncReturn (self.sock.send (data))
-
-    @Async
-    def Accept (self):
-        try:
-            client, addr = self.sock.accept ()
-            AsyncReturn ((self.core.AsyncSocketCreate (client), addr))
-        except socket.error as err:
-            if err.errno != errno.EAGAIN:
-                raise
-        yield self.core.Poll (self.fd, self.core.READABLE)
-        client, addr = self.sock.accept ()
-        AsyncReturn ((self.core.AsyncSocketCreate (client), addr))
-
-    def __getattr__ (self, attr):
-        return getattr (self.sock, attr)
 
 # vim: nu ft=python columns=120 :
