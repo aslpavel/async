@@ -33,7 +33,7 @@ class BaseFuture (object):
         raise NotImplementedError ()
 
     def ContinueWithAsync (self, async):
-        """Continue with asynchronous function "async" and pass result as argume
+        """Continue with asynchronous function "async" and pass result as argument
 
         signature:
             ContinueWithAsync (async:Future<T, Future<R>>) -> Future<R>
