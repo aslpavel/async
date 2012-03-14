@@ -30,6 +30,9 @@ class Core (object):
         self.poll_queue = {}
         self.poller = select.poll ()
 
+    #--------------------------------------------------------------------------#
+    # Poll Interface                                                           #
+    #--------------------------------------------------------------------------#
     READABLE = select.POLLIN
     WRITABLE = select.POLLOUT
     URGENT   = select.POLLPRI
@@ -71,6 +74,13 @@ class Core (object):
 
         return entry [1]
 
+    def AsyncSocketCreate (self, sock):
+        """Asynchronous socket wrapper"""
+        return AsyncSocket (self, sock)
+
+    #--------------------------------------------------------------------------#
+    # Timer Interface                                                          #
+    #--------------------------------------------------------------------------#
     def SleepUntil (self, time_resume):
         """Sleep until resume time is reached"""
         # create future
@@ -86,6 +96,13 @@ class Core (object):
         """Sleep delay seconds"""
         return self.SleepUntil (time () + delay)
 
+    def Schedule (self, delay, action):
+        """Execute action in delay seconds"""
+        return self.Sleep (delay).ContinueWithFunction (lambda now: action ())
+
+    #--------------------------------------------------------------------------#
+    # Run                                                                      #
+    #--------------------------------------------------------------------------#
     def Run (self):
         """Run core"""
         try:
@@ -106,6 +123,9 @@ class Core (object):
 
             raise
         
+    #--------------------------------------------------------------------------#
+    # Private                                                                  #
+    #--------------------------------------------------------------------------#
     def wait_uid (self, await_uid = None):
         while True:
             # timer queue
@@ -179,7 +199,9 @@ class Core (object):
                 if stop:
                     return
 
-    # context manager
+    #--------------------------------------------------------------------------#
+    # Dispose                                                                  #
+    #--------------------------------------------------------------------------#
     def __enter__ (self):
         return self
 
@@ -187,10 +209,6 @@ class Core (object):
         if et is None:
             self.Run ()
         return False
-
-    def AsyncSocketCreate (self, sock):
-        """Asynchronous socket wrapper"""
-        return AsyncSocket (self, sock)
 
 #------------------------------------------------------------------------------#
 # Asynchronous Socket                                                          #
