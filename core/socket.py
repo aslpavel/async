@@ -43,19 +43,21 @@ class AsyncSocket (object):
         except CoreHUPError:
             AsyncReturn (b'')
 
-    @Async
     def ReadExactly (self, size):
-        buffer = io.BytesIO ()
-        while buffer.tell () < size:
-            data = self.sock.recv (size - buffer.tell ())
+        return (self.ReadExactlyInto (io.BytesIO ())
+            .ContinueWithFunction (lambda buffer: buffer.getvalue ()))
+
+    @Async
+    def ReadExactlyInto (self, size, stream):
+        while stream.tell () < size:
+            data = self.sock.recv (size - stream.tell ())
             if data is None:
                 yield self.core.Poll (self.fd, self.core.READABLE)
             elif len (data):
-                buffer.write (data)
+                stream.write (data)
             else:
                 raise EOFError ()
-        AsyncReturn (buffer.getvalue ())
-
+        AsyncReturn (stream)
     #--------------------------------------------------------------------------#
     # Writing                                                                  #
     #--------------------------------------------------------------------------#
