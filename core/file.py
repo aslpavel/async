@@ -41,16 +41,16 @@ class AsyncFile (object):
 
     @Async
     def ReadExactly (self, size):
-        data = io.BytesIO ()
-        while data.tell () < size:
-            chunk = self.buffer.read (size - data.tell ())
-            if chunk is None:
+        buffer = io.BytesIO ()
+        while buffer.tell () < size:
+            data = self.buffer.read (size - buffer.tell ())
+            if data is None:
                 yield self.core.Poll (self.fd, self.core.READABLE)
-            elif len (chunk):
-                data.write (chunk)
+            elif len (data):
+                buffer.write (data)
             else:
                 raise EOFError ()
-        AsyncReturn (data.getvalue ())
+        AsyncReturn (buffer.getvalue ())
 
     #--------------------------------------------------------------------------#
     # Writing                                                                  #

@@ -45,16 +45,16 @@ class AsyncSocket (object):
 
     @Async
     def ReadExactly (self, size):
-        data = io.BytesIO ()
-        while data.tell () < size:
-            chunk = self.sock.recv (size - data.tell ())
-            if chunk is None:
+        buffer = io.BytesIO ()
+        while buffer.tell () < size:
+            data = self.sock.recv (size - buffer.tell ())
+            if data is None:
                 yield self.core.Poll (self.fd, self.core.READABLE)
-            elif len (chunk):
-                data.write (chunk)
+            elif len (data):
+                buffer.write (data)
             else:
                 raise EOFError ()
-        AsyncReturn (data.getvalue ())
+        AsyncReturn (buffer.getvalue ())
 
     #--------------------------------------------------------------------------#
     # Writing                                                                  #
@@ -101,5 +101,21 @@ class AsyncSocket (object):
         yield self.core.Poll (self.fd, self.core.READABLE)
         client, addr = self.sock.accept ()
         AsyncReturn ((self.core.AsyncSocketCreate (client), addr))
+
+    #--------------------------------------------------------------------------#
+    # Dispose                                                                  #
+    #--------------------------------------------------------------------------#
+    def Dispose (self):
+        self.sock.close ()
+
+    def __enter__ (self):
+        return self
+
+    def __exit__ (self, et, eo, tb):
+        self.Dispose ()
+        return False
+
+    def Close (self):
+        self.Dispose ()
 
 # vim: nu ft=python columns=120 :

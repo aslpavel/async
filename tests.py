@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
 import sys
 import unittest
-from .async import *
-from .core import *
+from . import *
 
 class FutureTest (unittest.TestCase):
-    # Succeded
+    # Succeeded
     def testSucceededContinue (self):
         future = Future ()
         future.ResultSet (1)
