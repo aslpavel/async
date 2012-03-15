@@ -87,15 +87,24 @@ class AsyncSocket (object):
     #--------------------------------------------------------------------------#
     @Async
     def Connect (self, address):
-        self.sock.connect (address)
+        try:
+            self.sock.connect (address)
+        except socket.errno as error:
+            if error.errno not in (errno.EINPROGRESS, errno.EWOULDBLOCK):
+                raise
         yield self.core.Poll (self.fd, self.core.WRITABLE)
 
     #--------------------------------------------------------------------------#
     # Bind                                                                     #
     #--------------------------------------------------------------------------#
-    @DummyAsync
     def Bind (self, address):
         self.sock.bind (address)
+
+    #--------------------------------------------------------------------------#
+    # Listen                                                                   #
+    #--------------------------------------------------------------------------#
+    def Listen (self, backlog):
+        self.sock.listend (backlog)
 
     #--------------------------------------------------------------------------#
     # Accept                                                                   #
