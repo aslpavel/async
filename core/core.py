@@ -73,9 +73,9 @@ class Core (object):
         """Asynchronous socket wrapper"""
         return AsyncSocket (self, sock)
 
-    def AsyncFileCreate (self, fd):
+    def AsyncFileCreate (self, fd, buffer_size = None, closefd = None):
         """Asynchronous file wrapper"""
-        return AsyncFile (self, fd)
+        return AsyncFile (self, fd, buffer_size, closefd)
 
     #--------------------------------------------------------------------------#
     # Timer Interface                                                          #

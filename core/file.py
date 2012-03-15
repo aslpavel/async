@@ -11,11 +11,12 @@ __all__ = ('AsyncFile',)
 class AsyncFile (object):
     default_buffer_size = 1 << 16
 
-    def __init__ (self, core, fd, buffer_size = None, closefd = True):
+    def __init__ (self, core, fd, buffer_size = None, closefd = None):
         self.fd = fd
         self.core = core
         self.buffer_size = self.default_buffer_size if buffer_size is None else buffer_size
-        self.buffer = io.open (fd, 'rb', buffering = self.buffer_size, closefd = closefd)
+        self.buffer = io.open (fd, 'rb', buffering = self.buffer_size,
+            closefd = True if closefd is None else closefd)
         self.Blocking (False)
 
     #--------------------------------------------------------------------------#
