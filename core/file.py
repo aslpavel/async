@@ -31,7 +31,7 @@ class AsyncFile (object):
     #--------------------------------------------------------------------------#
     @Async
     def Read (self, size):
-        data = self.buffer (size)
+        data = self.buffer.read (size)
         if data is not None:
             AsyncReturn (data)
 
@@ -42,13 +42,13 @@ class AsyncFile (object):
             AsyncReturn (b'')
 
     def ReadExactly (self, size):
-        return (self.ReadExactlyInto (io.BytesIO ())
+        return (self.ReadExactlyInto (size, io.BytesIO ())
             .ContinueWithFunction (lambda buffer: buffer.getvalue ()))
 
     @Async
     def ReadExactlyInto (self, size, stream):
         while stream.tell () < size:
-            data = self.stream.read (size - stream.tell ())
+            data = self.buffer.read (size - stream.tell ())
             if data is None:
                 yield self.core.Poll (self.fd, self.core.READABLE)
             elif len (data):

@@ -44,7 +44,7 @@ class AsyncSocket (object):
             AsyncReturn (b'')
 
     def ReadExactly (self, size):
-        return (self.ReadExactlyInto (io.BytesIO ())
+        return (self.ReadExactlyInto (size, io.BytesIO ())
             .ContinueWithFunction (lambda buffer: buffer.getvalue ()))
 
     @Async
