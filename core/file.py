@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import io, os, errno
+import io, os, fcntl, errno
 
 from .error import *
 from ..async import *
@@ -16,6 +16,7 @@ class AsyncFile (object):
         self.core = core
         self.buffer_size = self.default_buffer_size if buffer_size is None else buffer_size
         self.buffer = io.open (fd, 'rb', buffering = self.buffer_size, closefd = closefd)
+        self.Blocking (False)
 
     #--------------------------------------------------------------------------#
     # Properties                                                               #
@@ -68,9 +69,22 @@ class AsyncFile (object):
             data = data [os.write (self.fd, data):]
 
     #--------------------------------------------------------------------------#
+    # Blocking                                                                 #
+    #--------------------------------------------------------------------------#
+    def Blocking (self, enabled = True):
+        flags = fcntl.fcntl (self.fd, fcntl.F_GETFL)
+        if enabled:
+            flags &= ~os.O_NONBLOCK
+        else:
+            flags |= os.O_NONBLOCK
+        fcntl.fcntl (self.fd, fcntl.F_SETFL, flags)
+        return flags
+
+    #--------------------------------------------------------------------------#
     # Dispose                                                                  #
     #--------------------------------------------------------------------------#
     def Dispose (self):
+        self.Blocking ()
         self.buffer.close ()
 
     def __enter__ (self):
