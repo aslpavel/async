@@ -89,7 +89,7 @@ class AsyncSocket (object):
     def Connect (self, address):
         try:
             self.sock.connect (address)
-        except socket.errno as error:
+        except socket.error as error:
             if error.errno not in (errno.EINPROGRESS, errno.EWOULDBLOCK):
                 raise
         yield self.core.Poll (self.fd, self.core.WRITABLE)
