@@ -84,7 +84,6 @@ class AsyncFile (object):
     # Dispose                                                                  #
     #--------------------------------------------------------------------------#
     def Dispose (self):
-        self.Blocking ()
         self.buffer.close ()
 
     def __enter__ (self):
