@@ -151,6 +151,7 @@ class Core (object):
             for fd, event in self.poller.poll (delay):
                 stop = False
                 if event & self.ALL_ERRORS:
+                    self.poller.unregister (fd)
                     try:
                         error = CoreHUPError () if event & select.POLLHUP else \
                                 CoreNVALError () if event & select.POLLNVAL else \
@@ -167,7 +168,6 @@ class Core (object):
                         if uid == await_uid:
                             stop = True
 
-                    self.poller.unregister (fd)
                 else:
                     mask, completed = 0, []
 
