@@ -33,15 +33,16 @@ class AsyncSocket (object):
     @Async
     def Read (self, size):
         try:
-            AsyncReturn (self.sock.recv (size))
-        except socket.error as err:
-            if err.errno != errno.EAGAIN:
+            data = self.sock.recv (size)
+            if not data:
+                raise CoreHUPError ()
+            AsyncReturn (data)
+        except socket.error as error:
+            if error.errno != errno.EAGAIN:
                 raise
-        try:
-            yield self.core.Poll (self.fd, self.core.READABLE)
-            AsyncReturn (self.sock.recv (size))
-        except CoreHUPError:
-            AsyncReturn (b'')
+
+        yield self.core.Poll (self.fd, self.core.READABLE)
+        AsyncReturn (self.sock.recv (size))
 
     def ReadExactly (self, size):
         return (self.ReadExactlyInto (size, io.BytesIO ())
@@ -50,13 +51,19 @@ class AsyncSocket (object):
     @Async
     def ReadExactlyInto (self, size, stream):
         while stream.tell () < size:
-            data = self.sock.recv (size - stream.tell ())
-            if data is None:
-                yield self.core.Poll (self.fd, self.core.READABLE)
-            elif len (data):
+            try:
+                data = self.sock.recv (size - stream.tell ())
+                if not data:
+                    raise CoreHUPError ()
                 stream.write (data)
-            else:
-                raise EOFError ()
+                continue
+            except socket.error as error:
+                if error.errno != errno.EAGAIN:
+                    if error.errno == errno.EPIPE:
+                        raise CoreHUPError ()
+                    raise
+
+            yield self.core.Poll (self.fd, self.core.READABLE)
         AsyncReturn (stream)
     #--------------------------------------------------------------------------#
     # Writing                                                                  #
@@ -67,6 +74,8 @@ class AsyncSocket (object):
             data = data [self.sock.send (data):]
         except socket.errno as error:
             if error.errno != errno.EAGAIN:
+                if error.errno == errno.EPIPE:
+                    raise CoreHUPError ()
                 raise
 
         while len (data):
