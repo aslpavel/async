@@ -95,7 +95,7 @@ class AsyncFile (object):
         try:
             while len (data):
                 yield self.core.Poll (self.fd, self.core.WRITABLE)
-                data = data [os.write (self.fd, data):]
+                self.writer_buffer = self.writer_buffer [os.write (self.fd, self.writer_buffer):]
         finally:
             self.writer_buffer = None
 
