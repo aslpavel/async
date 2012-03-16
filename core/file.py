@@ -74,7 +74,7 @@ class AsyncFile (object):
 
     def WriteNoWait (self, data):
         # enqueue if writer is active
-        if self.writer_buffer:
+        if self.writer_buffer is not None:
             self.writer_buffer += data
             return
 
@@ -93,7 +93,7 @@ class AsyncFile (object):
     def writer (self, data):
         self.writer_buffer = data
         try:
-            while len (data):
+            while len (self.writer_buffer):
                 yield self.core.Poll (self.fd, self.core.WRITABLE)
                 self.writer_buffer = self.writer_buffer [os.write (self.fd, self.writer_buffer):]
         finally:
