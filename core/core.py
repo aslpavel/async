@@ -146,7 +146,7 @@ class Core (object):
 
             # select queue
             if not self.poll_queue and delay is None:
-                    return
+                return
             for fd, event in self.poller.poll (delay):
                 stop = False
                 if event & self.ALL_ERRORS:

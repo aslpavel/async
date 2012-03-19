@@ -26,9 +26,12 @@ class CoroutineFuture (Future):
 
     def Wait (self):
         while self.wait is not None:
-            self.wait.Wait ()
+            wait = self.wait
+            wait.Wait ()
+            assert self.wait != wait, 'coroutine has not progressed'
+
         if not self.IsCompleted ():
-            raise RuntimeError ('you cann\'t wait inside bound generator')
+            raise RuntimeError ('you can not wait inside bound generator')
 
     def Cancel (self):
         if not self.IsCompleted ():
