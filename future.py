@@ -231,12 +231,13 @@ class RaisedFuture (FailedFuture):
 # Future                                                                       #
 #------------------------------------------------------------------------------#
 class Future (BaseFuture):
-    __slots__ = ('result', 'error', 'complete', 'completed', 'wait')
+    __slots__ = ('result', 'error', 'complete', 'completed', 'wait', 'cancel')
 
-    def __init__ (self, wait = None):
+    def __init__ (self, wait = None, cancel = None):
         self.result, self.error = None, None
         self.complete, self.completed = None, False
         self.wait = wait
+        self.cancel = cancel
 
     #--------------------------------------------------------------------------#
     # Continuation                                                             #
@@ -316,7 +317,11 @@ class Future (BaseFuture):
     # Cancel                                                                   #
     #--------------------------------------------------------------------------#
     def Cancel (self):
-        self.ErrorRaise (FutureCanceled ())
+        if not self.completed:
+            if self.cancel is None:
+                self.ErrorRaise (FutureCanceled ())
+            else:
+                self.cancel ()
 
     #--------------------------------------------------------------------------#
     # Result                                                                   #

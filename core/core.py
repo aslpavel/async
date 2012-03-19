@@ -114,11 +114,10 @@ class Core (object):
                 future.ErrorSet (error)
 
             # resolve poll queue
-            for entries in self.poll_queue:
-                for entry in entries:
-                    if entry is None:
-                        continue
-                    entry [1].ErrorSet (error)
+            for entry in self.poll_queue:
+                if entry is None:
+                    continue
+                entry [1].ErrorSet (error)
 
             raise
         
@@ -180,7 +179,8 @@ class Core (object):
 
                     # writable
                     if event & select.POLLOUT:
-                        completed.append (w_entry)
+                        if w_entry != r_entry:
+                            completed.append (w_entry)
                     elif w_entry is not None:
                         mask |= select.POLLOUT
 

@@ -17,7 +17,7 @@ class AsyncFile (object):
         self.buffer_size = self.default_buffer_size if buffer_size is None else buffer_size
         self.buffer = io.open (fd, 'rb', buffering = self.buffer_size,
             closefd = True if closefd is None else closefd)
-        self.writer_buffer = None
+        self.writer_queue = None
         self.Blocking (False)
 
     #--------------------------------------------------------------------------#
@@ -74,8 +74,8 @@ class AsyncFile (object):
 
     def WriteNoWait (self, data):
         # enqueue if writer is active
-        if self.writer_buffer is not None:
-            self.writer_buffer += data
+        if self.writer_queue is not None:
+            self.writer_queue.append (data)
             return
 
         # try to just writer
@@ -91,13 +91,21 @@ class AsyncFile (object):
 
     @Async
     def writer (self, data):
-        self.writer_buffer = data
+        self.writer_queue = [data]
         try:
-            while len (self.writer_buffer):
+            while True:
                 yield self.core.Poll (self.fd, self.core.WRITABLE)
-                self.writer_buffer = self.writer_buffer [os.write (self.fd, self.writer_buffer):]
+
+                # write queue
+                data = b''.join (self.writer_queue)
+                data = data [os.write (self.fd, data):]
+
+                # update queue
+                if not data: return
+                del self.writer_queue [:]
+                self.writer_queue.append (data)
         finally:
-            self.writer_buffer = None
+            self.writer_queue = None
 
     #--------------------------------------------------------------------------#
     # Blocking                                                                 #
