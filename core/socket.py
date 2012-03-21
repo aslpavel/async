@@ -104,7 +104,7 @@ class AsyncSocket (object):
     # Listen                                                                   #
     #--------------------------------------------------------------------------#
     def Listen (self, backlog):
-        self.sock.listend (backlog)
+        self.sock.listen (backlog)
 
     #--------------------------------------------------------------------------#
     # Accept                                                                   #
