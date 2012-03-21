@@ -47,12 +47,14 @@ class AsyncFile (object):
 
     @Async
     def ReadExactlyInto (self, size, stream):
-        while stream.tell () < size:
-            data = self.buffer.read (size - stream.tell ())
+        left = size
+        while left:
+            data = self.buffer.read (left)
             if data is None:
                 yield self.core.Poll (self.fd, self.core.READABLE)
             elif data:
                 stream.write (data)
+                left -= len (data)
             else:
                 raise CoreHUPError ()
         AsyncReturn (stream)

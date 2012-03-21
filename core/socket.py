@@ -50,12 +50,14 @@ class AsyncSocket (object):
 
     @Async
     def ReadExactlyInto (self, size, stream):
-        while stream.tell () < size:
+        left = size
+        while left:
             try:
-                data = self.sock.recv (size - stream.tell ())
+                data = self.sock.recv (left)
                 if not data:
                     raise CoreHUPError ()
                 stream.write (data)
+                left -= len (data)
                 continue
             except socket.error as error:
                 if error.errno != errno.EAGAIN:
@@ -81,6 +83,43 @@ class AsyncSocket (object):
         while len (data):
             yield self.core.Poll (self.fd, self.core.WRITABLE)
             data = data [self.sock.send (data):]
+
+    def WriteNoWait (self, data):
+        # enqueue if writer is active
+        if self.writer_queue is not None:
+            self.writer_queue.append (data)
+            return
+
+        # try to just writer
+        try:
+            data = data [self.sock.send (data):]
+        except socket.errno as error:
+            if error.errno != errno.EAGAIN:
+                if error.errno == errno.EPIPE:
+                    raise CoreHUPError ()
+                raise
+
+        # start writer
+        if data:
+            self.writer (data)
+
+    @Async
+    def writer (self, data):
+        self.writer_queue = [data]
+        try:
+            while True:
+                yield self.core.Poll (self.fd, self.core.WRITABLE)
+
+                # write queue
+                data = b''.join (self.writer_queue)
+                data = data [self.sock.send (self.fd, data):]
+
+                # update queue
+                if not data: return
+                del self.writer_queue [:]
+                self.writer_queue.append (data)
+        finally:
+            self.writer_queue = None
 
     #--------------------------------------------------------------------------#
     # Connect                                                                  #
