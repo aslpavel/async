@@ -14,6 +14,7 @@ class AsyncSocket (object):
         self.core = core
         self.sock = sock
         self.fd = sock.fileno ()
+        self.writer_queue = None
         sock.setblocking (False)
 
     #--------------------------------------------------------------------------#
@@ -93,7 +94,7 @@ class AsyncSocket (object):
         # try to just writer
         try:
             data = data [self.sock.send (data):]
-        except socket.errno as error:
+        except socket.error as error:
             if error.errno != errno.EAGAIN:
                 if error.errno == errno.EPIPE:
                     raise CoreHUPError ()
