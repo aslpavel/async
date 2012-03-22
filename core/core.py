@@ -6,7 +6,7 @@ from time import time
 
 from .error import *
 from .file import *
-from .socket import *
+from .sock import *
 from ..future import *
 
 __all__ = ('Core',)
