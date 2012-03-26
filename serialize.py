@@ -39,7 +39,7 @@ class Serialize (Decorator):
         except Exception: future.ErrorSet (sys.exc_info ())
 
         try:
-            while len (self.queue):
+            while self.queue:
                 uid, future, args, keys = self.queue.popleft ()
                 try:
                     self.wait = self.async (*args, **keys)
