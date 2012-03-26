@@ -18,7 +18,6 @@ class Core (object):
     def __init__ (self):
         self.uid = 0
         self.timer_queue = []
-
         self.poll_queue = {}
         self.poller = select.poll ()
 
@@ -110,14 +109,19 @@ class Core (object):
             error = sys.exc_info ()
 
             # resolve time queue
-            for time_resume, uid, future in self.timer_queue:
+            timer_queue, self.timer_queue = self.timer_queue, []
+            for time_resume, uid, future in timer_queue:
                 future.ErrorSet (error)
 
             # resolve poll queue
-            for entry in self.poll_queue:
-                if entry is None:
-                    continue
-                entry [1].ErrorSet (error)
+            poll_queue, self.poll_queue = self.poll_queue, {}
+            for fd, entries in poll_queue.values ():
+                self.poller.unregister (fd)
+                for entry in entries:
+                    if entry is None:
+                        continue
+                    uid, future = entry
+                    future.ErrorSet (error)
 
             raise
         
@@ -134,6 +138,9 @@ class Core (object):
                     break
                 # pick next event
                 time_resume, uid, future = self.timer_queue [0]
+                if future.IsCompleted ():
+                    heappop (self.timer_queue)
+                    continue # future has been canceled
                 if time_resume > time_now:
                     delay = (time_resume - time_now) * 1000
                     break
@@ -174,6 +181,7 @@ class Core (object):
                     r_entry, w_entry = self.poll_queue.pop (fd)
                     if event & select.POLLIN:
                         completed.append (r_entry)
+                        r_entry = None
                     elif r_entry is not None:
                         mask = select.POLLIN
 
@@ -181,11 +189,13 @@ class Core (object):
                     if event & select.POLLOUT:
                         if w_entry != r_entry:
                             completed.append (w_entry)
+                        w_entry = None
                     elif w_entry is not None:
                         mask |= select.POLLOUT
 
                     # update poll
                     if mask:
+                        self.poll_queue [fd] = (r_entry, w_entry)
                         self.poller.register (fd, mask)
                     else:
                         self.poller.unregister (fd)
