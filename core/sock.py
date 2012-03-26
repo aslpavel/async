@@ -113,7 +113,7 @@ class AsyncSocket (object):
 
                 # write queue
                 data = b''.join (self.writer_queue)
-                data = data [self.sock.send (self.fd, data):]
+                data = data [self.sock.send (data):]
 
                 # update queue
                 if not data: return

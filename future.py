@@ -318,10 +318,9 @@ class Future (BaseFuture):
     #--------------------------------------------------------------------------#
     def Cancel (self):
         if not self.completed:
-            if self.cancel is None:
-                self.ErrorRaise (FutureCanceled ())
-            else:
+            if self.cancel is not None:
                 self.cancel ()
+            self.ErrorRaise (FutureCanceled ())
 
     #--------------------------------------------------------------------------#
     # Result                                                                   #
