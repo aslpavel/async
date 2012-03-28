@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import sys
-
-from .utils import *
+from .compat import *
 
 __all__ = ('Future', 'SucceededFuture', 'FailedFuture', 'RaisedFuture',
     'FutureError', 'FutureCanceled', 'FutureNotReady',)
