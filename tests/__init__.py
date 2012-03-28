@@ -15,9 +15,10 @@ def load_tests (loader, tests, pattern):
     # utils
     from . import serialize
     from . import delegate
+    from . import sink
 
     suite = TestSuite ()
-    for test in (future, unwrap, async, slots, serialize, delegate):
+    for test in (future, unwrap, async, slots, serialize, delegate, sink):
         suite.addTests (loader.loadTestsFromModule (test))
 
     return suite
