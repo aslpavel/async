@@ -1,10 +1,15 @@
 # -*- coding: utf-8 -*-
-import sys
 import unittest
-from . import *
+from .. import *
 
+__all__ = ('FutureTest',)
+#------------------------------------------------------------------------------#
+# Future Tests                                                                 #
+#------------------------------------------------------------------------------#
 class FutureTest (unittest.TestCase):
-    # Succeeded
+    #--------------------------------------------------------------------------#
+    # Succeeded                                                                #
+    #--------------------------------------------------------------------------#
     def testSucceededContinue (self):
         future = Future ()
         future.ResultSet (1)
@@ -36,7 +41,9 @@ class FutureTest (unittest.TestCase):
         with self.assertRaises (FutureError):
             future.ContinueWithAsync (async)
 
-    # Failed
+    #--------------------------------------------------------------------------#
+    # Failed                                                                   #
+    #--------------------------------------------------------------------------#
     def testFailedContinue (self):
         future = Future ()
         future.ErrorRaise (ValueError ())
@@ -78,7 +85,9 @@ class FutureTest (unittest.TestCase):
         with self.assertRaises (FutureError):
             future.ContinueWithAsync (async)
 
-    # Future Continue
+    #--------------------------------------------------------------------------#
+    # Future Continue                                                          #
+    #--------------------------------------------------------------------------#
     def testFutureContinue (self):
         future = Future ()
         self.assertFalse (future.IsCompleted ())
@@ -117,8 +126,10 @@ class FutureTest (unittest.TestCase):
         self.assertTrue (executed [0])
         with self.assertRaises (ValueError):
             result_future.Result ()
-    
-    # Future Continue with Function
+
+    #--------------------------------------------------------------------------#
+    # Future Continue with Function                                            #
+    #--------------------------------------------------------------------------#
     def testFutureContinueWithFunction (self):
         future = Future ()
         executed = [False]
@@ -150,7 +161,9 @@ class FutureTest (unittest.TestCase):
         self.assertFalse (executed [0])
         self.assertEqual (result_future.Error () [0], ValueError)
 
-    # Future Continue with Async
+    #--------------------------------------------------------------------------#
+    # Future Continue with Async                                               #
+    #--------------------------------------------------------------------------#
     def testFutureContinueWithAsync (self):
         async_future, future = Future (), Future ()
         def async (r):
@@ -272,337 +285,4 @@ class FutureTest (unittest.TestCase):
         self.assertEqual (future.Error () [0], RuntimeError)
         self.assertEqual (done, [0, 1])
 
-class AsyncTest (unittest.TestCase):
-    def testAsyncNormal (self):
-        f0, f1, f2 = (Future () for i in range (3))
-        context = []
-        append = context.append
-        @Async
-        def async ():
-            append (0)
-            append ((yield f1))
-            append ((yield f0))
-            append ((yield f2))
-            AsyncReturn (4)
-
-        self.assertEqual (context, [])
-        result_future = async ()
-
-        self.assertEqual (context, [0])
-        self.assertFalse (result_future.IsCompleted ())
-
-        f0.ResultSet (1)
-        self.assertEqual (context, [0])
-        self.assertFalse (result_future.IsCompleted ())
-
-        f1.ResultSet (2)
-        self.assertEqual (context, [0, 2, 1])
-        self.assertFalse (result_future.IsCompleted ())
-
-        f2.ResultSet (3)
-        self.assertEqual (context, [0, 2, 1, 3])
-        self.assertEqual (result_future.Result (), 4)
-
-    def testAsyncError (self):
-        f0, f1, f2 = (Future () for i in range (3))
-        context = []
-        @Async
-        def async ():
-            # caught exception
-            try:
-                yield f0
-            except Exception:
-                if sys.exc_info () [0] == ValueError:
-                    context.append (0)
-
-            context.append ((yield f1))
-
-            # uncaught exception
-            yield f2
-
-        result_future = async ()
-        self.assertFalse (result_future.IsCompleted ())
-
-        f0.ErrorRaise (ValueError)
-        self.assertEqual (context, [0])
-        self.assertFalse (result_future.IsCompleted ())
-
-        f1.ResultSet (1)
-        self.assertEqual (context, [0, 1])
-
-        f2.ErrorRaise (RuntimeError)
-        with self.assertRaises (RuntimeError):
-            result_future.Result ()
-
-    def testAsyncRecursionLimit (self):
-        future = Future ()
-        @Async
-        def async ():
-            count = 0
-            for i in range (sys.getrecursionlimit () * 2):
-                count += (yield future)
-            AsyncReturn (count)
-        result_future = async ()
-        self.assertFalse (result_future.IsCompleted ())
-        future.ResultSet (1)
-        self.assertEqual (result_future.Result (), sys.getrecursionlimit () * 2)
-
-    def testAsyncCancel (self):
-        f0, f1 = (Future () for i in range (2))
-        context = []
-        result_future = [None]
-        @Async
-        def async ():
-            try:
-                yield f0
-            except FutureCanceled:
-                context.append (0)
-            yield f1
-            result_future [0].Cancel ()
-
-        result_future [0] = async () 
-        self.assertFalse (result_future [0].IsCompleted ())
-
-        result_future [0].Cancel ()
-        self.assertFalse (result_future [0].IsCompleted ())
-        self.assertEqual (context, [0])
-
-        f1.ResultSet ('result')
-        with self.assertRaises (FutureCanceled):
-            result_future [0].Result ()
-
-
-    def testAsyncWait (self):
-        context = []
-        def result_setter (result):
-            def setter (future):
-                context.append (result)
-                future.ResultSet (result)
-            return setter
-        f0, f1, f2 = (self.wait_future (result_setter (i)) for i in range (1, 4))
-
-        @Async
-        def async ():
-            result = 0
-            result += yield f0
-            result += yield f1
-            result += yield f2
-            AsyncReturn (result)
-
-        result_future = async ()
-        self.assertFalse (result_future.IsCompleted ())
-
-        result_future.Wait ()
-        self.assertEqual (result_future.Result (), 6)
-        self.assertEqual (tuple (map (lambda f: f.IsCompleted (), (f0, f1, f2))), (True, True, True))
-        self.assertEqual (context, [1, 2, 3])
-
-    def testAsyncWithException (self):
-        @Async
-        def error ():
-            raise ValueError ()
-            yield CompletedFuture (1)
-        result_future = error ()
-        self.assertTrue (result_future.IsCompleted ())
-        self.assertEqual (result_future.Error () [0], ValueError)
-
-    def wait_future (self, wait):
-        future = [None]
-        def wait_future ():
-            wait (future [0])
-        future [0] = Future (wait_future)
-        return future [0]
-
-class TestSerialize (unittest.TestCase):
-    def testNormal (self):
-        tester = self.Tester ()
-        async, finish = tester.async, tester.finish
-        context = []
-
-        for i in range (3):
-            async (i).ContinueWithFunction (lambda result: context.append (result))
-
-        self.assertEqual (context, [])
-        finish (2, 0) # 2 -> 0
-        self.assertEqual (context, [])
-        finish (0, 1) # 0 -> 1
-        self.assertEqual (context, [1])
-        finish (1, 2) # 1 -> 2
-        self.assertEqual (context, [1, 2, 0])
-        self.assertEqual (async.worker, None)
-
-    def testRestart (self):
-        tester = self.Tester ()
-        async, finish = tester.async, tester.finish
-        context = []
-
-        async (0).ContinueWithFunction (lambda result: context.append (result))
-        self.assertEqual (context, [])
-        self.assertNotEqual (async.worker, None)
-        finish (0, 0)
-        self.assertEqual (context, [0])
-        self.assertEqual (async.worker, None)
-
-        # restart worker
-        async (1).ContinueWithFunction (lambda result: context.append (result))
-        self.assertEqual (context, [0])
-        finish (1, 1)
-        self.assertEqual (context, [0, 1])
-        self.assertEqual (async.worker, None)
-
-    def testFinished (self):
-        tester = self.Tester ()
-        async, finish = tester.async, tester.finish
-        context = []
-
-        # finsihed future
-        self.assertEqual (async.worker, None)
-        finish (0, 0)
-        async (0).ContinueWithFunction (lambda result: context.append (result))
-        self.assertEqual (context, [0])
-        self.assertEqual (async.worker, None)
-
-    class Tester (object):
-        def __init__ (self):
-            self.futures = {}
-
-        @Serialize
-        def async (self, uid):
-            future = self.futures.get (uid)
-            if future is None:
-                future = Future ()
-                self.futures [uid] = future
-            return future
-
-        def finish (self, uid, result):
-            future = self.futures.get (uid)
-            if future is None:
-                future = SucceededFuture (result)
-                self.futures [uid] = future
-            else:
-                future.ResultSet (result)
-
-class TestUnwrap (unittest.TestCase):
-    def testNromal (self):
-        f0, f1 = Future (), Future () # f0 -> f1
-        f = f0.Unwrap ()
-        self.assertFalse (f.IsCompleted ())
-
-        f0.ResultSet (f1)
-        self.assertFalse (f.IsCompleted ())
-
-        f1.ResultSet (10)
-        self.assertTrue (f.IsCompleted ())
-        self.assertEqual (f.Result (), f1.Result ())
-
-    def testError (self):
-        f0 = Future ()
-        f = f0.Unwrap ()
-
-        f0.ErrorRaise (ValueError ())
-        self.assertEqual (f.Error (), f0.Error ())
-
-        f0, f1 = Future (), Future ()
-        f = f0.Unwrap ()
-        f0.ResultSet (f1)
-        f1.ErrorRaise (TypeError ())
-        self.assertEqual (f.Error (), f1.Error ())
-
-    def testWait (self):
-        # normal
-        f1 = WaitFuture (10)
-        f0 = WaitFuture (f1)
-        f = f0.Unwrap ()
-        self.assertEqual (list (map (bool, (f, f0, f1))), [False, False, False])
-
-        f.Wait ()
-        self.assertEqual (list (map (bool, (f, f0, f1))), [True, True, True])
-        self.assertEqual (f.Result (), f1.Result ())
-
-        f.Wait () # do nothing
-
-        # error outer
-        f0 = WaitFuture (error = ValueError ())
-        f = f0.Unwrap ()
-        f.Wait ()
-        self.assertEqual (f.Error (), f0.Error ())
-
-        # error inner
-        f1 = WaitFuture (error = TypeError ())
-        f0 = WaitFuture (f1)
-        f = f0.Unwrap ()
-
-        f.Wait ()
-        self.assertEqual (f.Error (), f1.Error ())
-
-class SlotsTest (unittest.TestCase):
-    def testSlots (self):
-        # Future
-        f = Future ()
-
-        # SucceededFuture
-        f_succ = SucceededFuture (0)
-
-        # FailedFuture
-        try: raise ValueError ()
-        except Exception:
-            f_error = FailedFuture (sys.exc_info ())
-
-        # UnwparFuture
-        f_unwrap = f.Unwrap ()
-
-
-        # AsyncFuture
-        @Async
-        def f_async_ ():
-            yield f
-        f_async = f_async_ ()
-
-        # Continue with Async
-        f_cont_async = f_unwrap.ContinueWithAsync (f_async_)
-
-        futures = (f, f_succ, f_error, f_unwrap, f_async, f_cont_async)
-        for future in futures:
-            with self.assertRaises (AttributeError):
-                future.some_not_existing_field = True
-
-class DelegateTest (unittest.TestCase):
-    def testSync (self):
-        future = WaitFuture (10)
-        a = self.A (future)
-        self.assertFalse (future)
-        self.assertEqual (a.Method (1), 11)
-        self.assertTrue  (future)
-
-    def testAsync (self):
-        future = WaitFuture (10)
-        a = self.A (future)
-        self.assertFalse (future)
-        a_future = a.Method.Async (1)
-        self.assertFalse (future)
-        self.assertFalse (a_future)
-        future.Wait ()
-        self.assertTrue (future)
-        self.assertEqual (a_future.Result (), 11)
-
-    class A (object):
-        def __init__ (self, future):
-            self.future = future
-
-        @Delegate
-        @Async
-        def Method (self, value):
-            AsyncReturn (value + (yield self.future))
-
-def WaitFuture (result = None, error = None):
-    context = [None]
-    def wait ():
-        future = context [0]
-        if error is None:
-            future.ResultSet (result)
-        else:
-            future.ErrorRaise (error)
-    context [0] = Future (wait)
-
-    return context [0]
 # vim: nu ft=python columns=120 :
