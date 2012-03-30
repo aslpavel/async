@@ -8,7 +8,7 @@ __all__ = ('Future', 'SucceededFuture', 'FailedFuture', 'RaisedFuture',
 # Base Future                                                                  #
 #------------------------------------------------------------------------------#
 class BaseFuture (object):
-    """interface Future<out T>"""
+    """Future<out T> Interface"""
 
     __slots__ = tuple ()
 
@@ -153,7 +153,9 @@ class BaseFuture (object):
         self.Dispose ()
         return False
 
-# Exceptions
+#------------------------------------------------------------------------------#
+# Errors                                                                       #
+#------------------------------------------------------------------------------#
 class FutureError (Exception): pass
 class FutureNotReady (FutureError): pass
 class FutureCanceled (FutureError): pass
