@@ -2,6 +2,8 @@
 import sys
 
 from .future import *
+from .wait import *
+from .cancel import *
 
 __all__ = ('Async', 'DummyAsync', 'AsyncReturn',)
 #------------------------------------------------------------------------------#
@@ -14,33 +16,24 @@ class CoroutineResult (BaseException): pass
 def AsyncReturn (value):
     raise CoroutineResult (value)
 
-class CoroutineFuture (Future):
-    __slots__ = Future.__slots__ + ('coroutine', )
+class CoroutineFuture (MutableFuture):
+    __slots__  = MutableFuture.__slots__ + ('coroutine', )
+    inside_wait   = RaiseWait (FutureError ('can not wait inside bound generator'))
+    inside_cancel = RaiseCancel (FutureCanceled ())
 
     def __init__ (self, coroutine):
-        Future.__init__ (self)
+        MutableFuture.__init__ (self)
 
         self.coroutine = coroutine
-        self.wait = None
         self.resume (SucceededFuture (None))
 
-    def Wait (self):
-        while self.wait is not None:
-            wait = self.wait
-            wait.Wait ()
-            assert self.wait != wait, 'coroutine has not progressed'
-
-        if not self.IsCompleted ():
-            raise RuntimeError ('you can not wait inside bound generator')
-
-    def Cancel (self):
-        if not self.IsCompleted ():
-            if self.wait is None:
-                raise FutureCanceled () # we are inside generator
-            self.wait.Cancel ()
-
+    #--------------------------------------------------------------------------#
+    # Private                                                                  #
+    #--------------------------------------------------------------------------#
     def resume (self, future):
-        self.wait = None
+        self.wait.Replace (self.inside_wait)
+        self.cancel.Replace (self.inside_cancel)
+
         result, error = None, None
         try:
             while True:
@@ -48,7 +41,7 @@ class CoroutineFuture (Future):
                     else self.coroutine.throw (*future.Error ())
 
                 if not future.IsCompleted ():
-                    self.wait = future
+                    self.Replace (future)
                     future.Continue (self.resume)
                     return
         except CoroutineResult as ret:
@@ -58,7 +51,7 @@ class CoroutineFuture (Future):
         except Exception:
             error = sys.exc_info ()
 
-        self.wait = None
+        self.Replace ()
         if error is not None:
             self.ErrorSet (error)
         else:

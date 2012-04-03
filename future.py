@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 import sys
 from .compat import *
+from .wait import *
+from .cancel import *
 
-__all__ = ('Future', 'SucceededFuture', 'FailedFuture', 'RaisedFuture',
+__all__ = ('Future', 'SucceededFuture', 'FailedFuture', 'RaisedFuture', 'MutableFuture',
     'FutureError', 'FutureCanceled', 'FutureNotReady',)
 #------------------------------------------------------------------------------#
 # Base Future                                                                  #
@@ -43,24 +45,26 @@ class BaseFuture (object):
     #--------------------------------------------------------------------------#
     # Wait                                                                     #
     #--------------------------------------------------------------------------#
+    @property
     def Wait (self):
         """Wait for this future to complete
 
         signature:
-            Wait () -> None
+            Wait () -> WaitObject
         """
-        raise NotImplementedError ()
+        return RaiseWait (NotImplementedError ())
 
     #--------------------------------------------------------------------------#
     # Cancel                                                                   #
     #--------------------------------------------------------------------------#
+    @property
     def Cancel (self):
         """Cancel this future
 
         signature:
-            Cancel () -> None
+            Cancel () -> CancelObject
         """
-        raise NotImplementedError ()
+        return RaiseCancel (NotImplementedError ())
 
     #--------------------------------------------------------------------------#
     # Result                                                                   #
@@ -171,11 +175,13 @@ class CompletedFuture (BaseFuture):
         except Exception:
             return FailedFuture (sys.exc_info ())
 
+    @property
     def Wait (self):
-        pass
+        return DummyWait ()
 
+    @property
     def Cancel (self):
-        pass
+        return Cancel ()
 
     def IsCompleted (self):
         return True
@@ -235,8 +241,11 @@ class Future (BaseFuture):
     __slots__ = ('result', 'error', 'complete', 'completed', 'wait', 'cancel')
 
     def __init__ (self, wait = None, cancel = None):
+        # results
         self.result, self.error = None, None
+        # state
         self.complete, self.completed = None, False
+        # wait and cancel
         self.wait = wait
         self.cancel = cancel
 
@@ -254,7 +263,7 @@ class Future (BaseFuture):
             except Exception:
                 return FailedFuture (sys.exc_info ())
 
-        future = Future (self.Wait)
+        future = Future (self.Wait, self.Cancel)
 
         def complete ():
             try: future.ResultSet (cont (self))
@@ -278,7 +287,7 @@ class Future (BaseFuture):
             else:
                 return FailedFuture (self.error)
 
-        future = Future (self.Wait)
+        future = Future (self.Wait, self.Cancel)
 
         def complete ():
             if self.error is None:
@@ -308,20 +317,20 @@ class Future (BaseFuture):
     #--------------------------------------------------------------------------#
     # Wait                                                                     #
     #--------------------------------------------------------------------------#
+    @property
     def Wait (self):
-        if not self.completed:
-            if self.wait is None:
-                raise NotImplementedError ()
-            self.wait ()
+        if self.wait is None:
+            return RaiseWait (NotImplementedError ())
+        return self.wait
 
     #--------------------------------------------------------------------------#
     # Cancel                                                                   #
     #--------------------------------------------------------------------------#
+    @property
     def Cancel (self):
-        if not self.completed:
-            if self.cancel is not None:
-                self.cancel ()
-            self.ErrorRaise (FutureCanceled ())
+        if self.cancel is None:
+            return RaiseCancel (NotImplementedError ())
+        return self.cancel
 
     #--------------------------------------------------------------------------#
     # Result                                                                   #
@@ -375,67 +384,82 @@ class Future (BaseFuture):
         self.ErrorSet (error)
 
 dummy_complete = lambda : None
+
+#------------------------------------------------------------------------------#
+# Mutable Future                                                               #
+#------------------------------------------------------------------------------#
+class MutableFuture (Future):
+    __slots__ = Future.__slots__
+
+    def __init__ (self, future = None):
+        Future.__init__ (self, MutableWait (), MutableCancel ())
+        self.Replace (future)
+
+    def Replace (self, future = None):
+        if future is not None:
+            self.wait.Replace (future.Wait)
+            self.cancel.Replace (future.Cancel)
+        else:
+            self.wait.Replace ()
+            self.cancel.Replace ()
+
 #------------------------------------------------------------------------------#
 # Unwrap Future                                                                #
 #------------------------------------------------------------------------------#
-class UnwrapFuture (Future):
+class UnwrapFuture (MutableFuture):
     """Unwrap future helper"""
-    __slots__ = Future.__slots__ + ('future',)
+    __slots__ = MutableFuture.__slots__
 
     def __init__ (self, future):
-        Future.__init__ (self)
-
-        self.future = future
+        MutableFuture.__init__ (self, future)
         future.Continue (self.outer_cont)
 
-    def Wait (self):
-        while self.future is not None:
-            self.future.Wait ()
-
-    def outer_cont (self, outer_future):
-        error = outer_future.Error ()
+    #--------------------------------------------------------------------------#
+    # Private                                                                  #
+    #--------------------------------------------------------------------------#
+    def outer_cont (self, future):
+        error = future.Error ()
         if error is None:
-            inner_future = outer_future.Result ()
+            inner_future = future.Result ()
+            self.Replace (inner_future)
             inner_future.Continue (self.inner_cont)
-            self.future = inner_future
         else:
-            self.future = None
+            self.Replace ()
             self.ErrorSet (error)
 
-    def inner_cont (self, inner_future):
-        self.future = None
-        error = inner_future.Error ()
+    def inner_cont (self, future):
+        self.Replace ()
+        error = future.Error ()
         if error is None:
-            self.ResultSet (inner_future.Result ())
+            self.ResultSet (future.Result ())
         else:
             self.ErrorSet (error)
 
 #------------------------------------------------------------------------------#
 # Continue With Async Future                                                   #
 #------------------------------------------------------------------------------#
-class ContinueWithAsyncFuture (Future):
+class ContinueWithAsyncFuture (MutableFuture):
     __slots__ = Future.__slots__ + ('async',)
 
     def __init__ (self, future, async):
-        Future.__init__ (self)
+        self.async = async
 
-        self.async, self.wait = async, future
+        MutableFuture.__init__ (self, future)
         future.Continue (self.future_cont)
 
-    def Wait (self):
-        while self.wait is not None:
-            self.wait.Wait ()
-
+    #--------------------------------------------------------------------------#
+    # Private                                                                  #
+    #--------------------------------------------------------------------------#
     def future_cont (self, future):
         error = future.Error ()
         if error is None:
-            self.wait = self.async (self.wait.Result ()).Continue (self.async_cont)
+            self.Replace (self.async (future.Result ()).Continue (self.async_cont))
         else:
-            self.wait = None
+            self.Replace ()
             self.ErrorSet (error)
 
     def async_cont (self, future):
-        self.wait = None
+        self.Replace ()
         error = future.Error ()
         if error is None:
             self.ResultSet (future.Result ())

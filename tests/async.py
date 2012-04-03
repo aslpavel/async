@@ -2,6 +2,7 @@
 import sys
 import unittest
 from .. import *
+from .common import *
 
 __all__ = ('AsyncTest',)
 #------------------------------------------------------------------------------#
@@ -83,7 +84,7 @@ class AsyncTest (unittest.TestCase):
         self.assertEqual (result_future.Result (), sys.getrecursionlimit () * 2)
 
     def testAsyncCancel (self):
-        f0, f1 = (Future () for i in range (2))
+        f0, f1 = (CancelableFuture () for i in range (2))
         context = []
         result_future = [None]
         @Async
@@ -105,7 +106,6 @@ class AsyncTest (unittest.TestCase):
         f1.ResultSet ('result')
         with self.assertRaises (FutureCanceled):
             result_future [0].Result ()
-
 
     def testAsyncWait (self):
         context = []

@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import unittest
 from .. import *
+from ..wait import *
+from .common import *
 
 __all__ = ('FutureTest',)
 #------------------------------------------------------------------------------#
@@ -239,32 +241,13 @@ class FutureTest (unittest.TestCase):
         self.assertEqual (context, [0])
 
     def testFutureCancel (self):
-        future = Future ()
-        middle_future = (future
-            .ContinueWithFunction (lambda r: r + 1)
-            .ContinueWithFunction (lambda r: r + 1))
-        cancel_future = middle_future.ContinueWithFunction (lambda r: r + 1)
-        result_future = cancel_future.ContinueWithFunction (lambda r: r + 1)
-        cancel_future.Cancel ()
-        self.assertEqual (result_future.Error () [0], FutureCanceled)
-        future.ResultSet (1)
-        self.assertEqual (middle_future.Result (), 3)
+        # create cancelable future
+        f0 = CancelableFuture ()
 
-    not_set = object ()
-    def wait_future (self, result = not_set, error = not_set, on_wait = None):
-        if (error is not self.not_set) and (result is not self.not_set):
-            raise ValueError ('only one of result and error is allowed to be set')
-            
-        future = [None]
-        def wait ():
-            if error is self.not_set:
-                future [0].ResultSet (result)
-            else:
-                future [0].ErrorRaise (error)
-            if on_wait is not None:
-                on_wait (future [0])
-        future [0] = Future (wait)
-        return future [0]
+        f1 = f0.ContinueWithFunction (lambda f: None)
+        f1.ContinueWithFunction (lambda f: None).Cancel ()
+
+        self.assertEqual ((f0.Error () [0], f1.Error () [0]), (FutureCanceled,) * 2)
 
     def test_wait_future (self):
         with self.assertRaises (ValueError):
@@ -284,5 +267,21 @@ class FutureTest (unittest.TestCase):
         self.assertTrue (future.IsCompleted ())
         self.assertEqual (future.Error () [0], RuntimeError)
         self.assertEqual (done, [0, 1])
+
+    not_set = object ()
+    def wait_future (self, result = not_set, error = not_set, on_wait = None):
+        if (error is not self.not_set) and (result is not self.not_set):
+            raise ValueError ('only one of result and error is allowed to be set')
+
+        future = [None]
+        def wait (uids):
+            if error is self.not_set:
+                future [0].ResultSet (result)
+            else:
+                future [0].ErrorRaise (error)
+            if on_wait is not None:
+                on_wait (future [0])
+        future [0] = Future (Wait (-1, wait))
+        return future [0]
 
 # vim: nu ft=python columns=120 :

@@ -7,22 +7,51 @@ from time import time
 from .error import *
 from .file import *
 from .sock import *
+
 from ..future import *
+from ..wait import *
+from ..cancel import *
 
 __all__ = ('Core',)
 #------------------------------------------------------------------------------#
 # Core                                                                         #
 #------------------------------------------------------------------------------#
 class Core (object):
-    """Asynchronous application core"""
     def __init__ (self):
         self.uid = 0
-        self.timer_queue = []
-        self.poll_queue = {}
+        self.count = 0
+
+        self.time_queue = []
+        self.file_queue = {}
+
         self.poller = select.poll ()
 
     #--------------------------------------------------------------------------#
-    # Poll Interface                                                           #
+    # Sleep                                                                    #
+    #--------------------------------------------------------------------------#
+    def SleepUntil (self, resume):
+        # create future
+        self.count += 1
+        uid, self.uid = self.uid, self.uid + 1
+        def cancel ():
+            if future.IsCompleted ():
+                self.count -= 1
+                future.ErrorRaise (FutureCacnceled ())
+        future = Future (Wait (uid, self.wait), Cancel (cancel))
+
+        # enqueue
+        heappush (self.time_queue, (resume, uid, future))
+
+        return future
+
+    def Sleep (self, delay):
+        return self.SleepUntil (time () + delay)
+
+    def Schedule (self, delay, action):
+        return self.Sleep (delay).ContinueWithFunction (lambda now: action ())
+
+    #--------------------------------------------------------------------------#
+    # Poll                                                                     #
     #--------------------------------------------------------------------------#
     READABLE = select.POLLIN
     WRITABLE = select.POLLOUT
@@ -31,133 +60,88 @@ class Core (object):
     ALL_ERRORS = select.POLLERR | select.POLLHUP | select.POLLNVAL
 
     def Poll (self, fd, mask):
-        """Poll descriptor fd for events with mask"""
-        if mask is 0:
-            return RaisedFuture ('mask is empty')
-
         # create future
+        self.count += 1
         uid, self.uid = self.uid, self.uid + 1
-        entry = (uid, Future (lambda: self.wait_uid (uid)))
-        r_entry, w_entry = self.poll_queue.get (fd, (None, None))
+        def cancel ():
+            if not future.IsCompleted ():
+                self.count -= 1
+                file.Dispatch (mask)
+                future.ErrorRaise (FutureCanceled ())
+        future = Future (Wait (uid, self.wait), Cancel (cancel))
 
-        # queue read
-        poll_mask = 0
-        if mask & self.READABLE:
-            if r_entry is not None:
-                return RaisedFuture (CoreError ('same fd has already been queued for reading'))
-            poll_mask = self.READABLE
-            r_entry = entry
-        elif r_entry is not None:
-            poll_mask = self.READABLE
+        # enqueue
+        file = self.file_queue.get (fd)
+        if file is None:
+            file = File (fd, self.poller)
+            self.file_queue [fd] = file
+        self.poller.register (fd, file.Enqueue (mask, uid, future))
 
-        # queue write
-        if mask & self.WRITABLE:
-            if w_entry is not None:
-                return RaisedFuture (CoreError ('same fd has already been queued for writing'))
-            poll_mask |= self.WRITABLE
-            w_entry = entry
-        elif w_entry is not None:
-            poll_mask |= self.WRITABLE
-
-        # update poll
-        self.poll_queue [fd] = (r_entry, w_entry)
-        self.poller.register (fd, poll_mask)
-
-        return entry [1]
+        return future
 
     #--------------------------------------------------------------------------#
     # Factories                                                                #
     #--------------------------------------------------------------------------#
     def AsyncSocketCreate (self, sock):
-        """Asynchronous socket wrapper"""
         return AsyncSocket (self, sock)
 
     def AsyncFileCreate (self, fd, buffer_size = None, closefd = None):
-        """Asynchronous file wrapper"""
         return AsyncFile (self, fd, buffer_size, closefd)
-
-    #--------------------------------------------------------------------------#
-    # Timer Interface                                                          #
-    #--------------------------------------------------------------------------#
-    def SleepUntil (self, time_resume):
-        """Sleep until resume time is reached"""
-        # create future
-        uid, self.uid = self.uid, self.uid + 1
-        future = Future (lambda: self.wait_uid (uid))
-
-        # update queue
-        heappush (self.timer_queue, (time_resume, uid, future))
-
-        return future
-
-    def Sleep (self, delay):
-        """Sleep delay seconds"""
-        return self.SleepUntil (time () + delay)
-
-    def Schedule (self, delay, action):
-        """Execute action in delay seconds"""
-        return self.Sleep (delay).ContinueWithFunction (lambda now: action ())
 
     #--------------------------------------------------------------------------#
     # Run                                                                      #
     #--------------------------------------------------------------------------#
     def Run (self):
-        """Run core"""
         try:
-            self.wait_uid ()
+            self.wait ()
         except Exception:
             error = sys.exc_info ()
 
-            # resolve time queue
-            timer_queue, self.timer_queue = self.timer_queue, []
-            for time_resume, uid, future in timer_queue:
+            # time queue
+            time_queue, self.time_queue = self.time_queue, []
+            for resume, uid, future in time_queue:
+                self.count -= 1
                 future.ErrorSet (error)
 
-            # resolve poll queue
-            poll_queue, self.poll_queue = self.poll_queue, {}
-            for fd, entries in poll_queue.values ():
-                self.poller.unregister (fd)
-                for entry in entries:
-                    if entry is None:
-                        continue
-                    uid, future = entry
+            # file queue
+            for file in list (self.file_queue.values ()):
+                for uid, future in file.Dispatch (file.mask):
+                    self.count -= 1
                     future.ErrorSet (error)
 
             raise
-        
+
     #--------------------------------------------------------------------------#
     # Private                                                                  #
     #--------------------------------------------------------------------------#
-    def wait_uid (self, await_uid = None):
-        while True:
-            # timer queue
-            time_now, delay = time (), None
-            while True:
-                if not self.timer_queue:
-                    delay = None
-                    break
-                # pick next event
-                time_resume, uid, future = self.timer_queue [0]
-                if future.IsCompleted ():
-                    heappop (self.timer_queue)
-                    continue # future has been canceled
-                if time_resume > time_now:
-                    delay = (time_resume - time_now) * 1000
-                    break
-                # pop from queue
-                heappop (self.timer_queue)
-                # resolve future
-                future.ResultSet (time_resume)
-                # complete if its awaited uid
-                if uid == await_uid: return
+    def wait (self, uids = None):
+        if uids and None in uids:
+            return
 
-            # select queue
-            if not self.poll_queue and delay is None:
-                return
+        while True:
+            # time queue
+            now, delay = time (), None
+            while self.time_queue:
+                resume, uid, future = self.time_queue [0]
+                if future.IsCompleted (): # future has been canceled
+                    heappop (self.time_queue)
+                    continue
+                if resume > now:
+                    delay = (resume - now) * 1000
+                    break
+                heappop (self.time_queue)
+                self.count -= 1
+                future.ResultSet (resume)
+                if uids and uid in uids: return
+
+            if not self.time_queue:
+                delay = None
+
+            # file queue
+            if not self.count: return
             for fd, event in self.poller.poll (delay):
-                stop = False
+                file, stop = self.file_queue.get (fd), False
                 if event & self.ALL_ERRORS:
-                    self.poller.unregister (fd)
                     try:
                         error = CoreHUPError () if event & select.POLLHUP else \
                                 CoreNVALError () if event & select.POLLNVAL else \
@@ -166,50 +150,22 @@ class Core (object):
                     except CoreError:
                         error = sys.exc_info ()
 
-                    for entry in self.poll_queue.pop (fd):
-                        if entry is None:
-                            continue
-                        uid, future = entry
+                    for uid, future in file.Dispatch (file.mask):
+                        self.count -= 1
                         future.ErrorSet (error)
-                        if uid == await_uid:
+                        if uids and uid in uids:
                             stop = True
-
                 else:
-                    mask, completed = 0, []
-
-                    # readable
-                    r_entry, w_entry = self.poll_queue.pop (fd)
-                    if event & select.POLLIN:
-                        completed.append (r_entry)
-                        r_entry = None
-                    elif r_entry is not None:
-                        mask = select.POLLIN
-
-                    # writable
-                    if event & select.POLLOUT:
-                        if w_entry != r_entry:
-                            completed.append (w_entry)
-                        w_entry = None
-                    elif w_entry is not None:
-                        mask |= select.POLLOUT
-
-                    # update poll
-                    if mask:
-                        self.poll_queue [fd] = (r_entry, w_entry)
-                        self.poller.register (fd, mask)
-                    else:
-                        self.poller.unregister (fd)
-
-                    # complete separately as continuation could have changed event mask
-                    for uid, future in completed:
+                    for uid, future in file.Dispatch (event):
+                        self.count -= 1
                         future.ResultSet (event)
-                        if uid == await_uid:
+                        if uids and uid in uids:
                             stop = True
                 if stop:
                     return
 
     #--------------------------------------------------------------------------#
-    # Dispose                                                                  #
+    # Context                                                                  #
     #--------------------------------------------------------------------------#
     def __enter__ (self):
         return self
@@ -218,5 +174,49 @@ class Core (object):
         if et is None:
             self.Run ()
         return False
+
+#------------------------------------------------------------------------------#
+# File                                                                         #
+#------------------------------------------------------------------------------#
+class File (object):
+    __slots__ = ('fd', 'mask', 'entries', 'poller')
+
+    def __init__ (self, fd, poller):
+        self.fd = fd
+        self.mask = 0
+        self.entries = []
+        self.poller  = poller
+
+    #--------------------------------------------------------------------------#
+    # Enqueue                                                                  #
+    #--------------------------------------------------------------------------#
+    def Enqueue (self, mask, uid, future):
+        if self.mask & mask:
+            raise CoreError ('file has already been queued for this event')
+
+        self.mask |= mask
+        self.entries.append ((mask, uid, future))
+
+        return self.mask
+
+    #--------------------------------------------------------------------------#
+    # Dispatch                                                                 #
+    #--------------------------------------------------------------------------#
+    def Dispatch (self, event):
+        entries, result = [], []
+        for mask, uid, future in self.entries:
+            if mask & event:
+                result.append ((uid, future))
+            else:
+                entries.append ((mask, uid, future))
+
+        self.mask &= ~event
+        if self.mask:
+            self.poller.register (self.fd, self.mask)
+        else:
+            self.poller.unregister (self.fd)
+        self.entries = entries
+
+        return result
 
 # vim: nu ft=python columns=120 :

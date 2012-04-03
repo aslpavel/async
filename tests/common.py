@@ -2,21 +2,28 @@
 from heapq import heappush, heappop
 from .. import *
 
-__all__ = ('WaitFuture', 'ManualTimer')
+from ..cancel import *
+from ..wait import *
+
+__all__ = ('WaitFuture', 'CancelableFuture', 'ManualTimer')
 #------------------------------------------------------------------------------#
 # Wait Future                                                                  #
 #------------------------------------------------------------------------------#
 def WaitFuture (result = None, error = None):
-    context = [None]
-    def wait ():
-        future = context [0]
+    def wait (uids):
         if error is None:
             future.ResultSet (result)
         else:
             future.ErrorRaise (error)
-    context [0] = Future (wait)
+    future = Future (wait = Wait (-1, wait))
+    return future
 
-    return context [0]
+#------------------------------------------------------------------------------#
+# Cancelable Future                                                            #
+#------------------------------------------------------------------------------#
+def CancelableFuture ():
+    future = Future (cancel = Cancel (lambda: future.ErrorRaise (FutureCanceled ())))
+    return future
 
 #------------------------------------------------------------------------------#
 # Manual Timer                                                                 #
