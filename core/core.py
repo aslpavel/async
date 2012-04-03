@@ -19,7 +19,7 @@ __all__ = ('Core',)
 class Core (object):
     def __init__ (self):
         self.uid = 0
-        self.count = 0
+        self.uids = set ()
 
         self.time_queue = []
         self.file_queue = {}
@@ -31,13 +31,13 @@ class Core (object):
     #--------------------------------------------------------------------------#
     def SleepUntil (self, resume):
         # create future
-        self.count += 1
         uid, self.uid = self.uid, self.uid + 1
         def cancel ():
             if future.IsCompleted ():
-                self.count -= 1
+                sef.uids.discard (uid)
                 future.ErrorRaise (FutureCacnceled ())
         future = Future (Wait (uid, self.wait), Cancel (cancel))
+        self.uids.add (uid)
 
         # enqueue
         heappush (self.time_queue, (resume, uid, future))
@@ -61,14 +61,14 @@ class Core (object):
 
     def Poll (self, fd, mask):
         # create future
-        self.count += 1
         uid, self.uid = self.uid, self.uid + 1
         def cancel ():
             if not future.IsCompleted ():
-                self.count -= 1
+                self.uids.discard (uid)
                 file.Dispatch (mask)
                 future.ErrorRaise (FutureCanceled ())
         future = Future (Wait (uid, self.wait), Cancel (cancel))
+        self.uids.add (uid)
 
         # enqueue
         file = self.file_queue.get (fd)
@@ -100,13 +100,13 @@ class Core (object):
             # time queue
             time_queue, self.time_queue = self.time_queue, []
             for resume, uid, future in time_queue:
-                self.count -= 1
+                self.uids.discard (uid)
                 future.ErrorSet (error)
 
             # file queue
             for file in list (self.file_queue.values ()):
                 for uid, future in file.Dispatch (file.mask):
-                    self.count -= 1
+                    self.uids.discard (uid)
                     future.ErrorSet (error)
 
             raise
@@ -115,8 +115,10 @@ class Core (object):
     # Private                                                                  #
     #--------------------------------------------------------------------------#
     def wait (self, uids = None):
-        if uids and None in uids:
-            return
+        if uids:
+            for uid in uids:
+                if uid not in self.uids:
+                    return
 
         while True:
             # time queue
@@ -130,7 +132,7 @@ class Core (object):
                     delay = (resume - now) * 1000
                     break
                 heappop (self.time_queue)
-                self.count -= 1
+                self.uids.discard (uid)
                 future.ResultSet (resume)
                 if uids and uid in uids: return
 
@@ -138,7 +140,7 @@ class Core (object):
                 delay = None
 
             # file queue
-            if not self.count: return
+            if not self.uids: return
             for fd, event in self.poller.poll (delay):
                 file, stop = self.file_queue.get (fd), False
                 if event & self.ALL_ERRORS:
@@ -151,13 +153,13 @@ class Core (object):
                         error = sys.exc_info ()
 
                     for uid, future in file.Dispatch (file.mask):
-                        self.count -= 1
+                        self.uids.discard (uid)
                         future.ErrorSet (error)
                         if uids and uid in uids:
                             stop = True
                 else:
                     for uid, future in file.Dispatch (event):
-                        self.count -= 1
+                        self.uids.discard (uid)
                         future.ResultSet (event)
                         if uids and uid in uids:
                             stop = True

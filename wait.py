@@ -66,7 +66,7 @@ class CompositeWait (object):
     #--------------------------------------------------------------------------#
     def __call__ (self):
         prev, curr = None, self.uids ()
-        while curr and curr != prev: 
+        while curr and curr != prev:
             self.wait (curr)
             prev, curr = curr, self.uids ()
 
@@ -78,7 +78,7 @@ class CompositeWait (object):
 
     @property
     def wait (self):
-        return self.objs [0] if self.objs else (lambda uids: None)
+        return self.objs [0].wait if self.objs else (lambda uids: None)
 
 #------------------------------------------------------------------------------#
 # Mutable Wait (WaitAll)                                                       #
