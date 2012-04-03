@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
+import sys
 from ..async import *
 from ..future import *
+from ..cancel import *
 
 from collections import deque
 
@@ -17,7 +19,7 @@ class Sink (object):
         self.idle, self.queue = limit, deque ()
 
     def __call__ (self, *args, **keys):
-        future = Future ()
+        future = Future (cancel = MutableCancel (lambda: future.ErrorRaise (FutureCanceled ())))
         self.queue.append ((future, args, keys))
 
         if self.idle > 0:
@@ -32,7 +34,10 @@ class Sink (object):
             while self.queue:
                 future, args, keys = self.queue.popleft ()
                 try:
-                    future.ResultSet ((yield self.async (*args, **keys)))
+                    if not future.IsCompleted ():
+                        async_future = self.async (*args, **keys)
+                        future.Cancel.Replace (async_future.Cancel)
+                        future.ResultSet ((yield async_future))
                 except Exception:
                     future.ErrorSet (sys.exc_info ())
         finally:
