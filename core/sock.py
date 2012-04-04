@@ -75,7 +75,7 @@ class AsyncSocket (object):
     def Write (self, data):
         try:
             data = data [self.sock.send (data):]
-        except socket.errno as error:
+        except socket.error as error:
             if error.errno != errno.EAGAIN:
                 if error.errno == errno.EPIPE:
                     raise CoreHUPError ()
