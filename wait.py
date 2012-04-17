@@ -94,15 +94,13 @@ class MutableWait (object):
     #--------------------------------------------------------------------------#
     def Replace (self, obj = None):
         self.obj = obj
-    
+
     #--------------------------------------------------------------------------#
     # Wait                                                                     #
     #--------------------------------------------------------------------------#
     def __call__ (self):
         while self.obj is not None:
-            obj = self.obj
-            self.obj ()
-            assert self.obj != obj, 'Mutable wait object has not been updated'
+            self.wait (self.uids ())
 
     def uids (self):
         return tuple () if self.obj is None else self.obj.uids ()

@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 import sys
 import unittest
-from .. import *
+
 from .common import *
+from ..future import *
+from ..async import *
+from ..wait import *
 
 __all__ = ('AsyncTest',)
 #------------------------------------------------------------------------------#
@@ -142,10 +145,7 @@ class AsyncTest (unittest.TestCase):
         self.assertEqual (result_future.Error () [0], ValueError)
 
     def wait_future (self, wait):
-        future = [None]
-        def wait_future ():
-            wait (future [0])
-        future [0] = Future (wait_future)
-        return future [0]
+        future = Future (Wait (0, lambda uids: wait (future)))
+        return future
 
 # vim: nu ft=python columns=120 :
