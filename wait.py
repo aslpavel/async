@@ -59,7 +59,24 @@ class CompositeWait (object):
     __slots__ = ('objs',)
 
     def __init__ (self, *objs):
-        self.objs = objs
+        self.objs = set (objs)
+
+    #--------------------------------------------------------------------------#
+    # Add | Remove                                                             #
+    #--------------------------------------------------------------------------#
+    def Add (self, obj):
+        self.objs.add (obj)
+
+    def __iadd__ (self, obj):
+        self.Add (obj)
+        return self
+
+    def Remove (self, obj):
+        self.objs.discard (obj)
+
+    def __isub__ (self, obj):
+        self.Remove (obj)
+        return self
 
     #--------------------------------------------------------------------------#
     # Wait                                                                     #
