@@ -4,7 +4,7 @@ from .compat import *
 from .wait import *
 from .cancel import *
 
-__all__ = ('Future', 'SucceededFuture', 'FailedFuture', 'RaisedFuture', 'MutableFuture',
+__all__ = ('BaseFuture', 'Future', 'SucceededFuture', 'FailedFuture', 'RaisedFuture', 'MutableFuture',
     'FutureError', 'FutureCanceled', 'FutureNotReady',)
 #------------------------------------------------------------------------------#
 # Base Future                                                                  #
