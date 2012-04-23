@@ -69,8 +69,8 @@ Decorators:
     DummyAsync:
         Wrap result of funciton into Future
 
-    Serialize:
-        Serialize access to asynchronous function
+    Sink:
+        Limit access to asynchronous function
 
 Examples:
 --------
