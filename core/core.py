@@ -143,6 +143,13 @@ class Core (object):
             if not self.uids: return
             for fd, event in self.poller.poll (delay):
                 file, stop = self.file_queue.get (fd), False
+
+                for uid, future in file.Dispatch (event):
+                    self.uids.discard (uid)
+                    future.ResultSet (event)
+                    if uids and uid in uids:
+                        stop = True
+
                 if event & self.ALL_ERRORS:
                     try:
                         error = CoreHUPError () if event & select.POLLHUP else \
@@ -157,12 +164,7 @@ class Core (object):
                         future.ErrorSet (error)
                         if uids and uid in uids:
                             stop = True
-                else:
-                    for uid, future in file.Dispatch (event):
-                        self.uids.discard (uid)
-                        future.ResultSet (event)
-                        if uids and uid in uids:
-                            stop = True
+
                 if stop:
                     return
 
@@ -205,13 +207,18 @@ class File (object):
     # Dispatch                                                                 #
     #--------------------------------------------------------------------------#
     def Dispatch (self, event):
-        entries, result = [], []
+        entries, effected = [], []
+        if not event:
+            return effected
+
+        # find effected
         for mask, uid, future in self.entries:
             if mask & event:
-                result.append ((uid, future))
+                effected.append ((uid, future))
             else:
                 entries.append ((mask, uid, future))
 
+        # update mask
         self.mask &= ~event
         if self.mask:
             self.poller.register (self.fd, self.mask)
@@ -219,6 +226,6 @@ class File (object):
             self.poller.unregister (self.fd)
         self.entries = entries
 
-        return result
+        return effected
 
 # vim: nu ft=python columns=120 :
