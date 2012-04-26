@@ -144,12 +144,6 @@ class Core (object):
             for fd, event in self.poller.poll (delay):
                 file, stop = self.file_queue.get (fd), False
 
-                for uid, future in file.Dispatch (event):
-                    self.uids.discard (uid)
-                    future.ResultSet (event)
-                    if uids and uid in uids:
-                        stop = True
-
                 if event & self.ALL_ERRORS:
                     try:
                         error = CoreHUPError () if event & select.POLLHUP else \
@@ -162,6 +156,12 @@ class Core (object):
                     for uid, future in file.Dispatch (file.mask):
                         self.uids.discard (uid)
                         future.ErrorSet (error)
+                        if uids and uid in uids:
+                            stop = True
+                else:
+                    for uid, future in file.Dispatch (event):
+                        self.uids.discard (uid)
+                        future.ResultSet (event)
                         if uids and uid in uids:
                             stop = True
 
