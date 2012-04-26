@@ -33,17 +33,22 @@ class AsyncSocket (object):
     #--------------------------------------------------------------------------#
     @Async
     def Read (self, size):
-        try:
-            data = self.sock.recv (size)
-            if not data:
-                raise CoreHUPError ()
-            AsyncReturn (data)
-        except socket.error as error:
-            if error.errno != errno.EAGAIN:
-                raise
+        while True:
+            try:
+                data = self.sock.recv (size)
+                if not data:
+                    raise CoreHUPError ()
+                AsyncReturn (data)
 
-        yield self.core.Poll (self.fd, self.core.READABLE)
-        AsyncReturn (self.sock.recv (size))
+            except socket.error as error:
+                if error.errno != errno.EAGAIN:
+                    if error.errno == errno.EPIPE:
+                        raise CoreHUPError ()
+                    raise
+
+            try:
+                yield self.core.Poll (self.fd, self.core.READABLE)
+            except CoreHUPError: pass
 
     def ReadExactly (self, size):
         return (self.ReadExactlyInto (size, io.BytesIO ())
@@ -60,13 +65,17 @@ class AsyncSocket (object):
                 stream.write (data)
                 left -= len (data)
                 continue
+
             except socket.error as error:
                 if error.errno != errno.EAGAIN:
                     if error.errno == errno.EPIPE:
                         raise CoreHUPError ()
                     raise
 
-            yield self.core.Poll (self.fd, self.core.READABLE)
+            try:
+                yield self.core.Poll (self.fd, self.core.READABLE)
+            except CoreHUPError: pass
+
         AsyncReturn (stream)
     #--------------------------------------------------------------------------#
     # Writing                                                                  #

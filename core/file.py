@@ -32,14 +32,16 @@ class AsyncFile (object):
     #--------------------------------------------------------------------------#
     @Async
     def Read (self, size):
-        data = self.buffer.read (size)
-        if data is not None:
-            if not data:
+        while True:
+            data = self.buffer.read (size)
+            if data is None:
+                try:
+                    yield self.core.Poll (self.fd, self.core.READABLE)
+                except CoreHUPError: pass
+            elif data:
+                AsyncReturn (data)
+            else:
                 raise CoreHUPError ()
-            AsyncReturn (data)
-
-        yield self.core.Poll (self.fd, self.core.READABLE)
-        AsyncReturn (self.buffer.read (size))
 
     def ReadExactly (self, size):
         return (self.ReadExactlyInto (size, io.BytesIO ())
@@ -51,7 +53,9 @@ class AsyncFile (object):
         while left:
             data = self.buffer.read (left)
             if data is None:
-                yield self.core.Poll (self.fd, self.core.READABLE)
+                try:
+                    yield self.core.Poll (self.fd, self.core.READABLE)
+                except CoreHUPError: pass
             elif data:
                 stream.write (data)
                 left -= len (data)
