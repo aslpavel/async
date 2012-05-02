@@ -53,11 +53,14 @@ class Core (object):
     #--------------------------------------------------------------------------#
     # Poll                                                                     #
     #--------------------------------------------------------------------------#
-    READABLE = select.POLLIN
-    WRITABLE = select.POLLOUT
-    URGENT   = select.POLLPRI
-    ALL      = URGENT | WRITABLE | READABLE
-    ALL_ERRORS = select.POLLERR | select.POLLHUP | select.POLLNVAL
+    READABLE     = select.POLLIN
+    WRITABLE     = select.POLLOUT
+    URGENT       = select.POLLPRI
+    DISCONNECTED = select.POLLHUP
+    INVALID      = select.POLLNVAL
+    ERROR        = select.POLLERR
+    ALL          = URGENT | WRITABLE | READABLE
+    ALL_ERRORS   = ERROR | DISCONNECTED | INVALID
 
     def Poll (self, fd, mask):
         # create future
@@ -144,8 +147,8 @@ class Core (object):
 
                 if event & self.ALL_ERRORS:
                     try:
-                        error = CoreHUPError () if event & select.POLLHUP else \
-                                CoreNVALError () if event & select.POLLNVAL else \
+                        error = CoreHUPError () if event & self.DISCONNECTED else \
+                                CoreNVALError () if event & self.INVALID else \
                                 CoreIOError ()
                         raise error
                     except CoreError:
