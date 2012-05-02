@@ -18,8 +18,8 @@ def AsyncReturn (value):
 
 class CoroutineFuture (MutableFuture):
     __slots__  = MutableFuture.__slots__ + ('coroutine', )
-    inside_wait   = RaiseWait (FutureError ('can not wait inside bound generator'))
-    inside_cancel = RaiseCancel (FutureCanceled ())
+    inside_wait   = RaiseWait (FutureError ('Cann\'t wait inside bound generator'))
+    inside_cancel = RaiseCancel (FutureCanceled ('Current coroutine future has been canceled'))
 
     def __init__ (self, coroutine):
         MutableFuture.__init__ (self)

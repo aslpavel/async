@@ -94,22 +94,20 @@ class Core (object):
     def Run (self):
         try:
             self.wait ()
-        except Exception:
-            error = sys.exc_info ()
+        finally:
+            error = CoreError ('Core has stopped')
 
             # time queue
             time_queue, self.time_queue = self.time_queue, []
             for resume, uid, future in time_queue:
                 self.uids.discard (uid)
-                future.ErrorSet (error)
+                future.ErrorRaise (error)
 
             # file queue
             for file in list (self.file_queue.values ()):
                 for uid, future in file.Dispatch (file.mask):
                     self.uids.discard (uid)
-                    future.ErrorSet (error)
-
-            raise
+                    future.ErrorRaise (error)
 
     #--------------------------------------------------------------------------#
     # Private                                                                  #
