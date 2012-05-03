@@ -33,9 +33,8 @@ class Core (object):
         # create future
         uid, self.uid = self.uid, self.uid + 1
         def cancel ():
-            if future.IsCompleted ():
-                sef.uids.discard (uid)
-                future.ErrorRaise (FutureCacnceled ())
+            sef.uids.discard (uid)
+            future.ErrorRaise (FutureCacnceled ())
         future = Future (Wait (uid, self.wait), Cancel (cancel))
         self.uids.add (uid)
 
@@ -66,10 +65,9 @@ class Core (object):
         # create future
         uid, self.uid = self.uid, self.uid + 1
         def cancel ():
-            if not future.IsCompleted ():
-                self.uids.discard (uid)
-                file.Dispatch (mask)
-                future.ErrorRaise (FutureCanceled ())
+            self.uids.discard (uid)
+            file.Dispatch (mask)
+            future.ErrorRaise (FutureCanceled ())
         future = Future (Wait (uid, self.wait), Cancel (cancel))
         self.uids.add (uid)
 
