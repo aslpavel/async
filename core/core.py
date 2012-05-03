@@ -147,8 +147,8 @@ class Core (object):
 
                 if event & self.ALL_ERRORS:
                     try:
-                        error = CoreHUPError () if event & self.DISCONNECTED else \
-                                CoreNVALError () if event & self.INVALID else \
+                        error = CoreDisconnectedError () if event & self.DISCONNECTED else \
+                                CoreInvalidError () if event & self.INVALID else \
                                 CoreIOError ()
                         raise error
                     except CoreError:

@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
-import io, os, fcntl, errno
+import io
+import os
+import errno
+import fcntl
 
 from .error import *
 from ..async import *
@@ -37,11 +40,11 @@ class AsyncFile (object):
             if data is None:
                 try:
                     yield self.core.Poll (self.fd, self.core.READABLE)
-                except CoreHUPError: pass
+                except CoreDisconnectedError: pass
             elif data:
                 AsyncReturn (data)
             else:
-                raise CoreHUPError ()
+                raise CoreDisconnectedError ()
 
     def ReadExactly (self, size):
         return (self.ReadExactlyInto (size, io.BytesIO ())
@@ -55,12 +58,12 @@ class AsyncFile (object):
             if data is None:
                 try:
                     yield self.core.Poll (self.fd, self.core.READABLE)
-                except CoreHUPError: pass
+                except CoreDisconnectedError: pass
             elif data:
                 stream.write (data)
                 left -= len (data)
             else:
-                raise CoreHUPError ()
+                raise CoreDisconnectedError ()
         AsyncReturn (stream)
 
     #--------------------------------------------------------------------------#

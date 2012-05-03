@@ -1,5 +1,7 @@
 Asynchronous programming for Python
 -----------------------------------
+!!!README IS OUTDATED!!!
+
 C# like Async/Await paradigm for asynchronous programming in Python
 
 Types:
@@ -45,9 +47,9 @@ Types:
             Poll (fd:int, mask:int) -> Future<int>
                 Wait for "mask" event on descriptor "fd" on success return event mask
                 It also can raise:
-                    CoreHUPError  - the device has been disconnected
-                    CoreNVALError - the specified fd is invalid
-                    CoreIOError   - an error has occurred on the device or stream
+                    CoreDisconnectedError - the device has been disconnected
+                    CoreInvalidError      - the specified fd is invalid
+                    CoreIOError           - an error has occurred on the device or stream
 
             Sleep (delay:float) -> Future<float>
                 Complete future after at least "delay" seconds have passed
@@ -58,8 +60,8 @@ Types:
             AsyncSocketCreate (sock:socket.socket) -> AsyncSocket
                 AsyncSocket is a socket with additional asynchronous methods
                     Accept - accept connection
-                    Recv   - recv data
-                    Send   - send data
+                    Read   - recv data
+                    Write  - send data
 
 Decorators:
 -----------
@@ -121,3 +123,5 @@ Examples:
 
         if __name__ == '__main__':
             main ()
+
+# vim: nu columns=120 :

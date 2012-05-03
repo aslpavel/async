@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
-import io, socket, errno
+import io
+import errno
+import socket
 
 # local
 from .error import *
@@ -37,18 +39,18 @@ class AsyncSocket (object):
             try:
                 data = self.sock.recv (size)
                 if not data:
-                    raise CoreHUPError ()
+                    raise CoreDisconnectedError ()
                 AsyncReturn (data)
 
             except socket.error as error:
                 if error.errno != errno.EAGAIN:
                     if error.errno == errno.EPIPE:
-                        raise CoreHUPError ()
+                        raise CoreDisconnectedError ()
                     raise
 
             try:
                 yield self.core.Poll (self.fd, self.core.READABLE)
-            except CoreHUPError: pass
+            except CoreDisconnectedError: pass
 
     def ReadExactly (self, size):
         return (self.ReadExactlyInto (size, io.BytesIO ())
@@ -61,7 +63,7 @@ class AsyncSocket (object):
             try:
                 data = self.sock.recv (left)
                 if not data:
-                    raise CoreHUPError ()
+                    raise CoreDisconnectedError ()
                 stream.write (data)
                 left -= len (data)
                 continue
@@ -69,12 +71,12 @@ class AsyncSocket (object):
             except socket.error as error:
                 if error.errno != errno.EAGAIN:
                     if error.errno == errno.EPIPE:
-                        raise CoreHUPError ()
+                        raise CoreDisconnectedError ()
                     raise
 
             try:
                 yield self.core.Poll (self.fd, self.core.READABLE)
-            except CoreHUPError: pass
+            except CoreDisconnectedError: pass
 
         AsyncReturn (stream)
     #--------------------------------------------------------------------------#
@@ -87,7 +89,7 @@ class AsyncSocket (object):
         except socket.error as error:
             if error.errno != errno.EAGAIN:
                 if error.errno == errno.EPIPE:
-                    raise CoreHUPError ()
+                    raise CoreDisconnectedError ()
                 raise
 
         while len (data):
@@ -106,7 +108,7 @@ class AsyncSocket (object):
         except socket.error as error:
             if error.errno != errno.EAGAIN:
                 if error.errno == errno.EPIPE:
-                    raise CoreHUPError ()
+                    raise CoreDisconnectedError ()
                 raise
 
         # start writer
