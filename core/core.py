@@ -96,19 +96,7 @@ class Core (object):
         try:
             self.wait ()
         finally:
-            error = CoreError ('Core has stopped')
-
-            # time queue
-            time_queue, self.time_queue = self.time_queue, []
-            for resume, uid, future in time_queue:
-                self.uids.discard (uid)
-                future.ErrorRaise (error)
-
-            # file queue
-            for file in list (self.file_queue.values ()):
-                for uid, future in file.Dispatch (file.mask):
-                    self.uids.discard (uid)
-                    future.ErrorRaise (error)
+            self.resolve_with_error (CoreError ('Core has stopped'))
 
     #--------------------------------------------------------------------------#
     # Private                                                                  #
@@ -167,6 +155,21 @@ class Core (object):
                 if stop:
                     return
 
+    def resolve_with_error (self, error):
+        # time queue
+        time_queue, self.time_queue = self.time_queue, []
+        for resume, uid, future in time_queue:
+            future.ErrorRaise (error)
+
+        # file queue
+        for file in list (self.file_queue.values ()):
+            for uid, future in file.Dispatch (file.mask):
+                future.ErrorRaise (error)
+
+        # clear queues
+        self.uids.clear ()
+        self.file_queue.clear ()
+
     #--------------------------------------------------------------------------#
     # Context                                                                  #
     #--------------------------------------------------------------------------#
@@ -176,6 +179,8 @@ class Core (object):
     def __exit__ (self, et, eo, tb):
         if et is None:
             self.Run ()
+        else:
+            self.resolve_with_error (CoreError ('Core\'s context raised error', eo))
         return False
 
 #------------------------------------------------------------------------------#
