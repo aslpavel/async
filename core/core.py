@@ -96,13 +96,16 @@ class Core (object):
         return AsyncFile (self, fd, buffer_size, closefd)
 
     #--------------------------------------------------------------------------#
-    # Run                                                                      #
+    # Run | Stop                                                               #
     #--------------------------------------------------------------------------#
     def Run (self):
         try:
             self.wait ()
         finally:
-            self.resolve_with_error (CoreError ('Core has stopped'))
+            self.resolve_with_error (CoreError ('Core has terminated without resolving this future'))
+
+    def Stop (self):
+        self.resolve_with_error (CoreStopped ())
 
     #--------------------------------------------------------------------------#
     # Private                                                                  #
@@ -186,7 +189,7 @@ class Core (object):
         if et is None:
             self.Run ()
         else:
-            self.resolve_with_error (CoreError ('Core\'s context raised error', eo))
+            self.resolve_with_error (CoreError ('Core\'s context raised an error: {}'.format (eo), eo))
         return False
 
 #------------------------------------------------------------------------------#
