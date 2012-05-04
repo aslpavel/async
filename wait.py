@@ -117,7 +117,10 @@ class MutableWait (object):
     #--------------------------------------------------------------------------#
     def __call__ (self):
         while self.obj is not None:
-            self.wait (self.uids ())
+            uids = self.uids ()
+            if not uids:
+                break
+            self.wait (uids)
 
     def uids (self):
         return tuple () if self.obj is None else self.obj.uids ()
