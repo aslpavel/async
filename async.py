@@ -12,9 +12,8 @@ __all__ = ('Async', 'DummyAsync', 'AsyncReturn',)
 def Async (function):
     return lambda *args, **keys: CoroutineFuture (function (*args, **keys))
 
-class CoroutineResult (BaseException): pass
 def AsyncReturn (value):
-    raise CoroutineResult (value)
+    raise StopIteration (value)
 
 class CoroutineFuture (MutableFuture):
     __slots__  = MutableFuture.__slots__ + ('coroutine', )
@@ -44,10 +43,8 @@ class CoroutineFuture (MutableFuture):
                     self.Replace (future)
                     future.Continue (self.resume)
                     return
-        except CoroutineResult as ret:
-            result = ret.args [0]
-        except StopIteration:
-            result = None
+        except StopIteration as ret:
+            result = ret.args [0] if ret.args else None
         except Exception:
             error = sys.exc_info ()
 
