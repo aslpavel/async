@@ -145,6 +145,26 @@ class BaseFuture (object):
     __repr__ = __str__
 
     #--------------------------------------------------------------------------#
+    # Traceback                                                                #
+    #--------------------------------------------------------------------------#
+    def Traceback (self, name = None):
+        def traceback_cont (future):
+            try: return future.Result ()
+            except Exception:
+                import io, traceback
+
+                error_stream = io.StringIO () if sys.version_info [0] > 2 else io.BytesIO ()
+                error_stream.write ('Future \'{}\' has terminated with error\n'.format (
+                    'UNNAMED' if name is None else name))
+                traceback.print_exc (file = error_stream)
+
+                sys.stderr.write (error_stream.getvalue ())
+                sys.stderr.flush ()
+                raise
+
+        return self.Continue (traceback_cont)
+
+    #--------------------------------------------------------------------------#
     # Dispose                                                                  #
     #--------------------------------------------------------------------------#
     def Dispose (self):
