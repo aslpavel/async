@@ -1,17 +1,21 @@
 # -*- coding: utf-8 -*-
 import sys
+from collections import deque
+
+from .decorator import *
+
 from ..async import *
 from ..future import *
 from ..cancel import *
 from ..wait import *
-
-from collections import deque
 
 __all__ = ('Sink',)
 #------------------------------------------------------------------------------#
 # Sink                                                                         #
 #------------------------------------------------------------------------------#
 class Sink (object):
+    __slots__ = ('async', 'wait', 'idle', 'queue')
+
     def __init__ (self, async, limit):
         if limit <= 0:
             raise ValueError ('Limit must be more then zero')
@@ -20,6 +24,9 @@ class Sink (object):
         self.wait  = CompositeWait ()
         self.idle, self.queue = limit, deque ()
 
+    #--------------------------------------------------------------------------#
+    # Call                                                                     #
+    #--------------------------------------------------------------------------#
     def __call__ (self, *args, **keys):
         # future
         future = MutableFuture ()
@@ -37,6 +44,9 @@ class Sink (object):
 
         return future
 
+    #--------------------------------------------------------------------------#
+    # Workers                                                                  #
+    #--------------------------------------------------------------------------#
     @Async
     def worker (self):
         self.idle -= 1

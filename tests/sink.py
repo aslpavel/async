@@ -17,17 +17,11 @@ class SinkTest (unittest.TestCase):
         timer = ManualTimer ()
         sleep_sink_10 = Sink (timer.Sleep, 10)
 
-        # wait for all futures
-        @Async
-        def all (futures):
-            for future in futures:
-                yield future
-
         # condition
         context = [True]
 
         # call
-        (all ([sleep_sink_10 (1) for i in range (Count)])
+        (AllFuture (*(sleep_sink_10 (1) for i in range (Count)))
             .Continue (lambda future: operator.setitem (context, 0, False)))
 
         # run
