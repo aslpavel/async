@@ -75,6 +75,8 @@ class AsyncFile (object):
             data = data [os.write (self.fd, data):]
         except OSError as error:
             if error.errno != errno.EAGAIN:
+                if error.errno == errno.EPIPE:
+                    raise CoreDisconnectedError ()
                 raise
 
         while len (data):
@@ -92,6 +94,8 @@ class AsyncFile (object):
             data = data [os.write (self.fd, data):]
         except OSError as error:
             if error.errno != errno.EAGAIN:
+                if error.errno == errno.EPIPE:
+                    raise CoreDisconnectedError ()
                 raise
 
         # start writer
