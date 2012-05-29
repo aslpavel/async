@@ -52,7 +52,7 @@ class BaseFuture (object):
         signature:
             Wait () -> WaitObject
         """
-        return RaiseWait (NotImplementedError ())
+        return RaiseWait (NotImplementedError ('Future is not waitable'))
 
     #--------------------------------------------------------------------------#
     # Cancel                                                                   #
@@ -64,7 +64,7 @@ class BaseFuture (object):
         signature:
             Cancel () -> CancelObject
         """
-        return RaiseCancel (NotImplementedError ())
+        return RaiseCancel (NotImplementedError ('Future is not cancelable'))
 
     #--------------------------------------------------------------------------#
     # Result                                                                   #
