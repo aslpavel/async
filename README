@@ -117,8 +117,8 @@ C# like Async/Await paradigm for asynchronous programming in Python
 #------------------------------------------------------------------------------#
     Composition:
     ------------
-        AnyFuture (*futures:Future<Object>) -> Future<Object>
-            Future with reslut of the first resolved future
+        AnyFuture (*futures:Future<Object>) -> Future<Future<Object>>
+            Future with the first resolved future as result
 
         AllFuture (*futures:Future<Object>) -> Future<None>
             Future wich will be resolved when all futures are resolved

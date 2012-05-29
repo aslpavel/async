@@ -9,17 +9,13 @@ __all__ = ('AnyFuture', 'AllFuture')
 # Any Future                                                                   #
 #------------------------------------------------------------------------------#
 def AnyFuture (*futures):
-    any_future = Future (CompositeWait (*(future.Wait for future in futures)),
+    any_future = Future (
+        CompositeWait (*(future.Wait for future in futures)),
         Cancel (lambda: any_future.ErrorRaise (FutureCanceled ())))
-    def continuation (future):
-        if not any_future.IsCompleted ():
-            error = future.Error ()
-            if error is None:
-                any_future.ResultSet (future.Result ())
-            else:
-                any_future.ErrorSet (error)
+
     for future in futures:
-        future.Continue (continuation)
+        future.Continue (lambda completed_future: any_future.ResultSet (completed_future))
+
     return any_future
 
 #------------------------------------------------------------------------------#

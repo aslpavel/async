@@ -10,7 +10,7 @@ def load_tests (loader, tests, pattern):
     from . import future
     from . import unwrap
     from . import async
-    from . import  slots
+    from . import slots
 
     # utils
     from . import delegate
