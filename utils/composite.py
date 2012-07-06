@@ -15,6 +15,8 @@ def AnyFuture (*futures):
 
     for future in futures:
         future.Continue (lambda completed_future: any_future.ResultSet (completed_future))
+        if any_future.IsCompleted ():
+            break
 
     return any_future
 

@@ -20,6 +20,7 @@ class Core (object):
     def __init__ (self):
         self.uid = 0
         self.uids = set ()
+        self.running = False
 
         self.time_queue = []
         self.file_queue = {}
@@ -99,13 +100,30 @@ class Core (object):
     # Run | Stop                                                               #
     #--------------------------------------------------------------------------#
     def Run (self):
-        try:
-            self.wait ()
-        finally:
-            self.resolve_with_error (CoreError ('Core has terminated without resolving this future'))
+        if not self.running:
+            self.running = True
+            try:
+                self.wait ()
+            finally:
+                self.Stop (CoreError ('Core has terminated without resolving this future'))
 
-    def Stop (self):
-        self.resolve_with_error (CoreStopped ())
+    def Stop (self, error = None):
+        self.running = False
+        error = CoreStopped if error is None else error
+
+        # resovle time queue
+        time_queue, self.time_queue = self.time_queue, []
+        for resume, uid, future in time_queue:
+            future.ErrorRaise (error)
+
+        # resovle file queue
+        for file in list (self.file_queue.values ()):
+            for uid, future in file.Dispatch (file.mask):
+                future.ErrorRaise (error)
+
+        # clear queues
+        self.uids.clear ()
+        self.file_queue.clear ()
 
     #--------------------------------------------------------------------------#
     # Private                                                                  #
@@ -116,26 +134,36 @@ class Core (object):
                 if uid not in self.uids:
                     return
 
-        while True:
-            # time queue
+        while self.running or uids:
+            #------------------------------------------------------------------#
+            # Timer Queue                                                      #
+            #------------------------------------------------------------------#
             now, delay = time (), None
             while self.time_queue:
                 resume, uid, future = self.time_queue [0]
-                if future.IsCompleted (): # future has been canceled
+
+                if future.IsCompleted ():
+                    # future has been canceled
                     heappop (self.time_queue)
                     continue
+
                 if resume > now:
                     delay = (resume - now) * 1000
                     break
+
                 heappop (self.time_queue)
                 self.uids.discard (uid)
                 future.ResultSet (resume)
-                if uids and uid in uids: return
+
+                if uids and uid in uids:
+                    return
 
             if not self.time_queue:
                 delay = None
 
-            # file queue
+            #------------------------------------------------------------------#
+            # File Queue                                                       #
+            #------------------------------------------------------------------#
             if not self.uids: return
             for fd, event in self.poller.poll (delay):
                 file, stop = self.file_queue.get (fd), False
@@ -163,21 +191,6 @@ class Core (object):
 
                 if stop:
                     return
-
-    def resolve_with_error (self, error):
-        # time queue
-        time_queue, self.time_queue = self.time_queue, []
-        for resume, uid, future in time_queue:
-            future.ErrorRaise (error)
-
-        # file queue
-        for file in list (self.file_queue.values ()):
-            for uid, future in file.Dispatch (file.mask):
-                future.ErrorRaise (error)
-
-        # clear queues
-        self.uids.clear ()
-        self.file_queue.clear ()
 
     #--------------------------------------------------------------------------#
     # Context                                                                  #
