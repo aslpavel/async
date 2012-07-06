@@ -34,8 +34,8 @@ class Core (object):
         # create future
         uid, self.uid = self.uid, self.uid + 1
         def cancel ():
-            sef.uids.discard (uid)
-            future.ErrorRaise (FutureCacnceled ())
+            self.uids.discard (uid)
+            future.ErrorRaise (FutureCanceled ())
         future = Future (Wait (uid, self.wait), Cancel (cancel))
         self.uids.add (uid)
 
