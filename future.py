@@ -189,9 +189,9 @@ class FutureCanceled (FutureError): pass
 #------------------------------------------------------------------------------#
 class CompletedFuture (BaseFuture):
     __slots__ = tuple ()
-    def Continue (self, cont):
-        try:
-            return SucceededFuture (cont (self))
+
+    def Continue (self, continuation):
+        try: return SucceededFuture (continuation (self))
         except Exception:
             return FailedFuture (sys.exc_info ())
 
@@ -212,9 +212,8 @@ class SucceededFuture (CompletedFuture):
     def __init__ (self, result = None):
         self.result = result
 
-    def ContinueWithFunction (self, cont):
-        try:
-            return SucceededFuture (cont (self.result))
+    def ContinueWithFunction (self, continuation):
+        try: return SucceededFuture (continuation (self.result))
         except Exception:
             return FailedFuture (sys.exc_info ())
 
@@ -233,7 +232,7 @@ class FailedFuture (CompletedFuture):
     def __init__ (self, error):
         self.error = error
 
-    def ContinueWithFunction (self, cont):
+    def ContinueWithFunction (self, continuation):
         return self
 
     def ContinueWithAsync (self, async):
@@ -251,20 +250,19 @@ class RaisedFuture (FailedFuture):
     def __init__ (self, error):
         try: raise error
         except Exception:
-            exc_info = sys.exc_info ()
-        FailedFuture.__init__ (self, exc_info)
+            FailedFuture.__init__ (self, sys.exc_info ())
 
 #------------------------------------------------------------------------------#
 # Future                                                                       #
 #------------------------------------------------------------------------------#
 class Future (BaseFuture):
-    __slots__ = ('result', 'error', 'complete', 'completed', 'wait', 'cancel')
+    __slots__ = ('result', 'error', 'handlers', 'wait', 'cancel')
 
     def __init__ (self, wait = None, cancel = None):
         # results
         self.result, self.error = None, None
-        # state
-        self.complete, self.completed = None, False
+        # handlers
+        self.handlers = []
         # wait and cancel
         self.wait = wait
         self.cancel = cancel
@@ -272,61 +270,44 @@ class Future (BaseFuture):
     #--------------------------------------------------------------------------#
     # Continuation                                                             #
     #--------------------------------------------------------------------------#
-    def Continue (self, cont):
-        if self.complete is not None:
-            raise FutureError ('future has already been continued')
-
-        if self.completed:
-            self.complete = dummy_complete
-            try:
-                return SucceededFuture (cont (self))
+    def Continue (self, continuation):
+        if self.handlers is None:
+            try: return SucceededFuture (continuation (self))
             except Exception:
                 return FailedFuture (sys.exc_info ())
 
         future = Future (self.Wait, self.Cancel)
-
-        def complete ():
-            try: future.ResultSet (cont (self))
+        def handler ():
+            try: future.ResultSet (continuation (self))
             except Exception:
                 future.ErrorSet (sys.exc_info ())
-        self.complete = complete
+        self.handlers.append (handler)
 
         return future
 
-    def ContinueWithFunction (self, cont):
-        if self.complete is not None:
-            raise FutureError ('future has already been continued')
-
-        if self.completed:
-            self.complete = dummy_complete
+    def ContinueWithFunction (self, continuation):
+        if self.handlers is None:
             if self.error is None:
-                try:
-                    return SucceededFuture (cont (self.result))
+                try: return SucceededFuture (continuation (self.result))
                 except Exception:
                     return FailedFuture (sys.exc_info ())
             else:
                 return FailedFuture (self.error)
 
         future = Future (self.Wait, self.Cancel)
-
-        def complete ():
+        def handler ():
             if self.error is None:
-                try:
-                    future.ResultSet (cont (self.result))
+                try: future.ResultSet (continuation (self.result))
                 except Exception:
                     future.ErrorSet (sys.exc_info ())
             else:
                 future.ErrorSet (self.error)
-        self.complete = complete
+        self.handlers.append (handler)
 
         return future
 
     def ContinueWithAsync (self, async):
-        if self.complete is not None:
-            raise FutureError ('future has already been continued')
-
-        if self.completed:
-            self.complete = dummy_complete
+        if self.handlers is None:
             if self.error is None:
                 return async (self.result)
             else:
@@ -356,11 +337,12 @@ class Future (BaseFuture):
     # Result                                                                   #
     #--------------------------------------------------------------------------#
     def Result (self):
-        if not self.completed:
+        if self.handlers is not None:
             raise FutureNotReady ()
 
         if self.error is not None:
             Raise (*self.error)
+
         return self.result
 
     #--------------------------------------------------------------------------#
@@ -373,37 +355,40 @@ class Future (BaseFuture):
     # Completed                                                                #
     #--------------------------------------------------------------------------#
     def IsCompleted (self):
-        return self.completed
+        return self.handlers is None
 
     #--------------------------------------------------------------------------#
     # Resolve                                                                  #
     #--------------------------------------------------------------------------#
     def ResultSet (self, result):
-        if self.completed: return
-        self.completed = True
+        if self.handlers is None:
+            return
 
         self.result = result
-        if self.complete is not None:
-            self.complete ()
+        handlers, self.handlers = self.handlers, None
+        for handler in handlers:
+            handler ()
 
     def ErrorSet (self, error):
-        if self.completed: return
-        self.completed = True
+        if self.handlers is None:
+            return
 
         self.error = error
-        if self.complete is not None:
-            self.complete ()
+        handlers, self.handlers = self.handlers, None
+        for handler in handlers:
+            handler ()
 
     def ErrorRaise (self, exception):
-        if self.completed: return
+        if self.handlers is None:
+            return
 
         try: raise exception
         except Exception:
-            error = sys.exc_info ()
+            self.error = sys.exc_info ()
 
-        self.ErrorSet (error)
-
-dummy_complete = lambda : None
+        handlers, self.handlers = self.handlers, None
+        for handler in handlers:
+            handler ()
 
 #------------------------------------------------------------------------------#
 # Mutable Future                                                               #

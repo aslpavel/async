@@ -18,17 +18,11 @@ class FutureTest (unittest.TestCase):
         self.assertTrue (future.IsCompleted ())
         self.assertEqual (future.Continue (lambda f: f.Result () + 1).Result (), 2)
 
-        with self.assertRaises (FutureError):
-            future.Continue (lambda f: None)
-
     def testSucceededContinueWithFunction (self):
         future = Future ()
         future.ResultSet (1)
         self.assertTrue (future.IsCompleted ())
         self.assertEqual (future.ContinueWithFunction (lambda r: r + 1).Result (), 2)
-
-        with self.assertRaises (FutureError):
-            future.ContinueWithFunction (lambda r: None)
 
     def testSucceededContinueWithAsync (self):
         future, async_future = Future (), Future ()
@@ -39,9 +33,6 @@ class FutureTest (unittest.TestCase):
         self.assertFalse (result_future.IsCompleted ())
         async_future.ResultSet (2)
         self.assertEqual (result_future.Result (), 2)
-
-        with self.assertRaises (FutureError):
-            future.ContinueWithAsync (async)
 
     #--------------------------------------------------------------------------#
     # Failed                                                                   #
@@ -61,9 +52,6 @@ class FutureTest (unittest.TestCase):
         self.assertEqual (future.Continue (cont).Error () [:2], future.Error () [:2])
         self.assertTrue (executed [0])
 
-        with self.assertRaises (FutureError):
-            future.Continue (lambda r: None)
-
     def testFailedContinueWithFunction (self):
         future = Future ()
         future.ErrorRaise (ValueError ())
@@ -74,18 +62,12 @@ class FutureTest (unittest.TestCase):
         self.assertEqual (future.ContinueWithFunction (cont).Error (), future.Error ())
         self.assertFalse (executed [0])
 
-        with self.assertRaises (FutureError):
-            future.ContinueWithFunction (lambda r: None)
-
     def testFailedContinueWithAsync (self):
         future = Future ()
         future.ErrorRaise (ValueError ())
         def async (result):
             return TypeError ()
         self.assertEqual (future.ContinueWithAsync (async).Error (), future.Error ())
-
-        with self.assertRaises (FutureError):
-            future.ContinueWithAsync (async)
 
     #--------------------------------------------------------------------------#
     # Future Continue                                                          #
@@ -101,9 +83,6 @@ class FutureTest (unittest.TestCase):
             return f.Result () + 1
         result_future = future.Continue (cont)
         self.assertFalse (result_future.IsCompleted ())
-
-        with self.assertRaises (FutureError):
-            future.Continue (cont)
 
         future.ResultSet (1)
         self.assertEqual (future.Result (), 1)
@@ -142,9 +121,6 @@ class FutureTest (unittest.TestCase):
         self.assertFalse (result_future.IsCompleted ())
         self.assertFalse (executed [0])
 
-        with self.assertRaises (FutureError):
-            future.ContinueWithFunction (cont)
-
         future.ResultSet (1)
         self.assertTrue (executed [0])
         self.assertTrue (result_future.IsCompleted ())
@@ -172,9 +148,6 @@ class FutureTest (unittest.TestCase):
             return async_future.Continue (lambda ar: ar.Result () + r)
         result_future = future.ContinueWithAsync (async)
         self.assertFalse (result_future.IsCompleted ())
-
-        with self.assertRaises (FutureError):
-            future.ContinueWithAsync (async)
 
         future.ResultSet (1)
         self.assertFalse (result_future.IsCompleted ())
