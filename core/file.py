@@ -4,6 +4,7 @@ import os
 import errno
 import fcntl
 
+from .fd import *
 from .error import *
 from ..async import *
 
@@ -121,16 +122,13 @@ class AsyncFile (object):
             self.writer_queue = None
 
     #--------------------------------------------------------------------------#
-    # Blocking                                                                 #
+    # Options                                                                  #
     #--------------------------------------------------------------------------#
-    def Blocking (self, enabled = True):
-        flags = fcntl.fcntl (self.fd, fcntl.F_GETFL)
-        if enabled:
-            flags &= ~os.O_NONBLOCK
-        else:
-            flags |= os.O_NONBLOCK
-        fcntl.fcntl (self.fd, fcntl.F_SETFL, flags)
-        return flags
+    def Blocking (self, enable = None):
+        return FileBlocking (self.fd, enable)
+
+    def CloseOnExec (self, enable = None):
+        return FileCloseOnExec (self.fd, enable)
 
     #--------------------------------------------------------------------------#
     # Dispose                                                                  #

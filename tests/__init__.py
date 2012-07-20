@@ -16,8 +16,11 @@ def load_tests (loader, tests, pattern):
     from . import delegate
     from . import sink
 
+    # core
+    from . import fd
+
     suite = TestSuite ()
-    for test in (future, unwrap, async, slots, delegate, sink):
+    for test in (future, unwrap, async, slots, delegate, sink, fd):
         suite.addTests (loader.loadTestsFromModule (test))
 
     return suite

@@ -4,6 +4,7 @@ import errno
 import socket
 
 # local
+from .fd import *
 from .error import *
 from ..async import *
 
@@ -172,6 +173,15 @@ class AsyncSocket (object):
         yield self.core.Poll (self.fd, self.core.READABLE)
         client, addr = self.sock.accept ()
         AsyncReturn ((self.core.AsyncSocketCreate (client), addr))
+
+    #--------------------------------------------------------------------------#
+    # Options                                                                  #
+    #--------------------------------------------------------------------------#
+    def Blocking (self, enable = None):
+        return FileBlocking (self.fd, enable)
+
+    def CloseOnExec (self, enable = None):
+        return FileCloseOnExec (self.fd, enable)
 
     #--------------------------------------------------------------------------#
     # Dispose                                                                  #
