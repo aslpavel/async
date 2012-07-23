@@ -202,7 +202,7 @@ class Core (object):
         if et is None:
             self.Run ()
         else:
-            self.resolve_with_error (CoreError ('Core\'s context raised an error: {}'.format (eo), eo))
+            self.Stop (CoreError ('Core\'s context raised an error: {}'.format (eo), eo))
         return False
 
 #------------------------------------------------------------------------------#
