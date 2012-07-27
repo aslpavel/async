@@ -134,6 +134,7 @@ class Core (object):
                 if uid not in self.uids:
                     return
 
+        resume = None # initalize local variable
         while self.running or uids:
             #------------------------------------------------------------------#
             # Timer Queue                                                      #
