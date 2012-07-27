@@ -95,7 +95,7 @@ class CompositeWait (object):
 
     @property
     def wait (self):
-        return self.objs [0].wait if self.objs else (lambda uids: None)
+        return next (iter (self.objs)).wait if self.objs else (lambda uids: None)
 
 #------------------------------------------------------------------------------#
 # Mutable Wait (WaitAll)                                                       #

@@ -138,34 +138,30 @@ class Core (object):
             #------------------------------------------------------------------#
             # Timer Queue                                                      #
             #------------------------------------------------------------------#
-            now, delay = time (), None
             while self.time_queue:
                 resume, uid, future = self.time_queue [0]
 
                 if future.IsCompleted ():
-                    # future has been canceled
-                    heappop (self.time_queue)
+                    heappop (self.time_queue) # future has been canceled
                     continue
 
-                if resume > now:
-                    delay = (resume - now) * 1000
+                if resume > time ():
                     break
 
+                # resolve timer
                 heappop (self.time_queue)
                 self.uids.discard (uid)
                 future.ResultSet (resume)
+                resume = None
 
                 if uids and uid in uids:
                     return
-
-            if not self.time_queue:
-                delay = None
 
             #------------------------------------------------------------------#
             # File Queue                                                       #
             #------------------------------------------------------------------#
             if not self.uids: return
-            for fd, event in self.poller.poll (delay):
+            for fd, event in self.poller.poll ((resume - time ()) * 1000 if resume else None):
                 file, stop = self.file_queue.get (fd), False
 
                 if event & self.ALL_ERRORS:
