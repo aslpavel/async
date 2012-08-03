@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
-from . import delegate, sink, composite
+from . import lazy, sink, delegate, composite
 
-from .delegate import *
+from .lazy import *
 from .sink import *
+from .delegate import *
 from .composite import *
 
-__all__ = delegate.__all__ + sink.__all__ + composite.__all__
+__all__ = lazy.__all__ + sink.__all__ + delegate.__all__ + composite.__all__
 # vim: nu ft=python columns=120 :

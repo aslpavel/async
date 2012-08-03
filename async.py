@@ -10,7 +10,10 @@ __all__ = ('Async', 'DummyAsync', 'AsyncReturn',)
 # Async                                                                        #
 #------------------------------------------------------------------------------#
 def Async (function):
-    return lambda *args, **keys: CoroutineFuture (function (*args, **keys))
+    def async_function (*args, **keys):
+        return CoroutineFuture (function (*args, **keys))
+    async_function.__name__ = function.__name__
+    return async_function
 
 def AsyncReturn (value):
     raise StopIteration (value)

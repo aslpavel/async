@@ -41,7 +41,6 @@ class BaseFuture (object):
         """
         raise NotImplementedError ()
 
-
     #--------------------------------------------------------------------------#
     # Wait                                                                     #
     #--------------------------------------------------------------------------#
@@ -142,7 +141,9 @@ class BaseFuture (object):
                 return '|~ {}:{} {}|'.format (error [0].__name__, error [1], id (self))
         else:
             return '|? None {}|'.format (id (self))
-    __repr__ = __str__
+
+    def __repr__ (self):
+        return self.__str__ ()
 
     #--------------------------------------------------------------------------#
     # Traceback                                                                #
