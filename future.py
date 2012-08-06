@@ -41,6 +41,18 @@ class BaseFuture (object):
         """
         raise NotImplementedError ()
 
+    def ContinueWithFuture (self, future):
+        """Resolve "future" with the same result as this future"""
+
+        def continuation (this):
+            error = this.Error ()
+            if error is None:
+                future.ResultSet (this.Result ())
+            else:
+                future.ErrorSet (error)
+
+        return self.Continue (continuation)
+
     #--------------------------------------------------------------------------#
     # Wait                                                                     #
     #--------------------------------------------------------------------------#
