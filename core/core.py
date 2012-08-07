@@ -165,6 +165,9 @@ class Core (object):
             for fd, event in self.poller.poll ((resume - time ()) * 1000 if resume else None):
                 file, stop = self.file_queue.get (fd), False
 
+                if file is None:
+                    continue
+
                 if event & self.ALL_ERRORS:
                     try:
                         error = CoreDisconnectedError () if event & self.DISCONNECTED else \
@@ -179,6 +182,7 @@ class Core (object):
                         future.ErrorSet (error)
                         if uids and uid in uids:
                             stop = True
+
                 else:
                     for uid, future in file.Dispatch (event):
                         self.uids.discard (uid)
