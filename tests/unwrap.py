@@ -60,4 +60,12 @@ class TestUnwrap (unittest.TestCase):
         f.Wait ()
         self.assertEqual (f.Error (), f1.Error ())
 
+    def testInvalid (self):
+        f  = Future ()
+        fu = f.Unwrap ()
+
+        f.ResultSet (None)
+        with self.assertRaises (ValueError):
+            fu.Result ()
+
 # vim: nu ft=python columns=120 :

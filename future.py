@@ -439,8 +439,12 @@ class UnwrapFuture (MutableFuture):
         error = future.Error ()
         if error is None:
             inner_future = future.Result ()
-            self.Replace (inner_future)
-            inner_future.Continue (self.inner_cont)
+            if isinstance (inner_future, BaseFuture):
+                self.Replace (inner_future)
+                inner_future.Continue (self.inner_cont)
+            else:
+                self.Replace ()
+                self.ErrorRaise (ValueError ('Result of the outer future is not a future'))
         else:
             self.Replace ()
             self.ErrorSet (error)
