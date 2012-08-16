@@ -5,7 +5,7 @@ import socket
 
 # local
 from .fd import *
-from .error import *
+from .core import *
 from ..async import *
 
 __all__ = ('AsyncSocket',)
@@ -13,9 +13,9 @@ __all__ = ('AsyncSocket',)
 # Asynchronous Socket                                                          #
 #------------------------------------------------------------------------------#
 class AsyncSocket (object):
-    def __init__ (self, core, sock):
-        self.core = core
+    def __init__ (self, sock, core = None):
         self.sock = sock
+        self.core = core or Core.Instance ()
         self.fd = sock.fileno ()
         self.writer_queue = None
         sock.setblocking (False)

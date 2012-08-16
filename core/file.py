@@ -5,7 +5,7 @@ import errno
 import fcntl
 
 from .fd import *
-from .error import *
+from .core import *
 from ..async import *
 
 __all__ = ('AsyncFile',)
@@ -15,9 +15,9 @@ __all__ = ('AsyncFile',)
 class AsyncFile (object):
     default_buffer_size = 1 << 16
 
-    def __init__ (self, core, fd, buffer_size = None, closefd = None):
+    def __init__ (self, fd, buffer_size = None, closefd = None, core = None):
         self.fd = fd
-        self.core = core
+        self.core = core or Core.Instance ()
         self.buffer_size = self.default_buffer_size if buffer_size is None else buffer_size
         self.buffer = io.open (fd, 'rb', buffering = self.buffer_size,
             closefd = True if closefd is None else closefd)

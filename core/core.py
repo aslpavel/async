@@ -1,22 +1,31 @@
 # -*- coding: utf-8 -*-
 import sys
 import select
+import threading
 from heapq import heappush, heappop
 from time import time
-
-from .error import *
-from .file import *
-from .sock import *
 
 from ..future import *
 from ..wait import *
 from ..cancel import *
 
-__all__ = ('Core',)
+__all__ = ('Core', 'CoreError', 'CoreStopped', 'CoreIOError', 'CoreDisconnectedError', 'CoreInvalidError')
+#------------------------------------------------------------------------------#
+# Errors                                                                       #
+#------------------------------------------------------------------------------#
+class CoreError (Exception): pass
+class CoreStopped (CoreError): pass
+class CoreIOError (CoreError): pass
+class CoreDisconnectedError (CoreIOError): pass
+class CoreInvalidError (CoreIOError): pass
+
 #------------------------------------------------------------------------------#
 # Core                                                                         #
 #------------------------------------------------------------------------------#
 class Core (object):
+    instance_lock = threading.Lock ()
+    instance      = None
+
     def __init__ (self):
         self.uid = 0
         self.uids = set ()
@@ -26,6 +35,16 @@ class Core (object):
         self.file_queue = {}
 
         self.poller = select.poll ()
+
+    #--------------------------------------------------------------------------#
+    # Instance                                                                 #
+    #--------------------------------------------------------------------------#
+    @classmethod
+    def Instance (cls, factory = None):
+        with cls.instance_lock:
+            if cls.instance is None:
+                cls.instance = factory () if factory else Core ()
+            return cls.instance
 
     #--------------------------------------------------------------------------#
     # Sleep                                                                    #
@@ -86,15 +105,6 @@ class Core (object):
     #--------------------------------------------------------------------------#
     def Idle (self):
         return self.SleepUntil (0)
-
-    #--------------------------------------------------------------------------#
-    # Factories                                                                #
-    #--------------------------------------------------------------------------#
-    def AsyncSocketCreate (self, sock):
-        return AsyncSocket (self, sock)
-
-    def AsyncFileCreate (self, fd, buffer_size = None, closefd = None):
-        return AsyncFile (self, fd, buffer_size, closefd)
 
     #--------------------------------------------------------------------------#
     # Run | Stop                                                               #

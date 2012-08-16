@@ -55,6 +55,9 @@ Core:
         #------------------------------------------------------------------#
         # Running                                                          #
         #------------------------------------------------------------------#
+        Instance () -> None
+            Singleton instance
+
         Run () -> None
             Run core
 
@@ -83,34 +86,32 @@ Core:
         Idle () -> Future<None>
             Complete sometime later
 
-        #------------------------------------------------------------------#
-        # Asynchronous Objects                                             #
-        #------------------------------------------------------------------#
-        AsyncFileCreate (fd:int, buffer_size:int = 1 << 16, closefd:None = True) -> AsyncFile
-            AsyncFile:
-                #----------------------------------------------------------#
-                # Reading                                                  #
-                #----------------------------------------------------------#
-                Read (size:int) -> Future<data>
-                ReadExactly (size:int) -> Future<data>
-                ReadExactlyInto (size:int, stream:stream) -> Future<stream>
+Asynchronous Objects:
+---------------------
 
-                #----------------------------------------------------------#
-                # Writing                                                  #
-                #----------------------------------------------------------#
-                Write (data) -> Future<None>
-                WriteNoWait (data) -> None
+    AsyncFile:
+        #----------------------------------------------------------#
+        # Reading                                                  #
+        #----------------------------------------------------------#
+        Read (size:int) -> Future<data>
+        ReadExactly (size:int) -> Future<data>
+        ReadExactlyInto (size:int, stream:stream) -> Future<stream>
+
+        #----------------------------------------------------------#
+        # Writing                                                  #
+        #----------------------------------------------------------#
+        Write (data) -> Future<None>
+        WriteNoWait (data) -> None
 
 
-        AsyncSocketCreate (sock:socket.socket) -> AsyncSocket
-            AsyncSocket is an AsyncFile with additional methods
-                #----------------------------------------------------------#
-                # Socket Methods                                           #
-                #----------------------------------------------------------#
-                Connect (address:?) -> Future<AsyncSocket>
-                Bind (address) -> None
-                Listen (backlog) -> None
-                Accept () -> Future<(AsyncSocket, address)>
+    AsyncSocket is an AsyncFile with additional methods
+        #----------------------------------------------------------#
+        # Socket Methods                                           #
+        #----------------------------------------------------------#
+        Connect (address:?) -> Future<AsyncSocket>
+        Bind (address) -> None
+        Listen (backlog) -> None
+        Accept () -> Future<(AsyncSocket, address)>
 
 #------------------------------------------------------------------------------#
 # Functions                                                                    #
@@ -142,10 +143,9 @@ import socket
 from async import *
 
 def main ():
-    # create core
-    with Core () as core:
+    with Core.Instance ():
         # create server socket
-        sock = core.AsyncSocketCreate (socket.socket ())
+        sock = AsyncSocket (socket.socket ())
         sock.Bind (('localhost', 8000))
         sock.Listen (10)
 
