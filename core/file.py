@@ -2,7 +2,6 @@
 import io
 import os
 import errno
-import fcntl
 
 from .fd import *
 from .core import *

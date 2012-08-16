@@ -80,6 +80,7 @@ class AsyncSocket (object):
             except CoreDisconnectedError: pass
 
         AsyncReturn (stream)
+
     #--------------------------------------------------------------------------#
     # Writing                                                                  #
     #--------------------------------------------------------------------------#
