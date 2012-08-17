@@ -21,7 +21,7 @@ class SinkTest (unittest.TestCase):
         context = [True]
 
         # call
-        (AllFuture (*(sleep_sink_10 (1) for i in range (Count)))
+        (AllFuture (sleep_sink_10 (1) for i in range (Count))
             .Continue (lambda future: operator.setitem (context, 0, False)))
 
         # run

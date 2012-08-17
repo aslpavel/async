@@ -8,9 +8,10 @@ __all__ = ('AnyFuture', 'AllFuture')
 #------------------------------------------------------------------------------#
 # Any Future                                                                   #
 #------------------------------------------------------------------------------#
-def AnyFuture (*futures):
+def AnyFuture (futures):
+    futures    = tuple (futures)
     any_future = Future (
-        CompositeWait (*(future.Wait for future in futures)),
+        CompositeWait (future.Wait for future in futures),
         Cancel (lambda: any_future.ErrorRaise (FutureCanceled ())))
 
     for future in futures:
@@ -24,8 +25,8 @@ def AnyFuture (*futures):
 # All Future                                                                   #
 #------------------------------------------------------------------------------#
 @Async
-def AllFuture (*futures):
-    for future in futures:
+def AllFuture (futures):
+    for future in tuple (futures):
         yield future
 
 # vim: nu ft=python columns=120 :

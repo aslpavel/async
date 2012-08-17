@@ -58,8 +58,8 @@ class RaiseWait (object):
 class CompositeWait (object):
     __slots__ = ('objs',)
 
-    def __init__ (self, *objs):
-        self.objs = set (objs)
+    def __init__ (self, objs = None):
+        self.objs = set (objs) if objs else set ()
 
     #--------------------------------------------------------------------------#
     # Add | Remove                                                             #

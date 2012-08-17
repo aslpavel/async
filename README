@@ -118,10 +118,10 @@ Asynchronous Objects:
 #------------------------------------------------------------------------------#
 Composition:
 ------------
-    AnyFuture (*futures:Future<Object>) -> Future<Future<Object>>
+    AnyFuture (IEnumerable <futures:Future<Object>>) -> Future<Future<Object>>
         Future with the first resolved future as result
 
-    AllFuture (*futures:Future<Object>) -> Future<None>
+    AllFuture (IEnumerable <futures:Future<Object>>) -> Future<None>
         Future wich will be resolved when all futures are resolved
 
 #------------------------------------------------------------------------------#
