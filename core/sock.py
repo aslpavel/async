@@ -50,7 +50,7 @@ class AsyncSocket (object):
                     raise
 
             try:
-                yield self.core.Poll (self.fd, self.core.READABLE)
+                yield self.core.Poll (self.fd, self.core.READ)
             except CoreDisconnectedError: pass
 
     def ReadExactly (self, size):
@@ -76,7 +76,7 @@ class AsyncSocket (object):
                     raise
 
             try:
-                yield self.core.Poll (self.fd, self.core.READABLE)
+                yield self.core.Poll (self.fd, self.core.READ)
             except CoreDisconnectedError: pass
 
         AsyncReturn (stream)
@@ -95,7 +95,7 @@ class AsyncSocket (object):
                 raise
 
         while len (data):
-            yield self.core.Poll (self.fd, self.core.WRITABLE)
+            yield self.core.Poll (self.fd, self.core.WRITE)
             data = data [self.sock.send (data):]
 
     def WriteNoWait (self, data):
@@ -122,7 +122,7 @@ class AsyncSocket (object):
         self.writer_queue = [data]
         try:
             while True:
-                yield self.core.Poll (self.fd, self.core.WRITABLE)
+                yield self.core.Poll (self.fd, self.core.WRITE)
 
                 # write queue
                 data = b''.join (self.writer_queue)
@@ -145,7 +145,7 @@ class AsyncSocket (object):
         except socket.error as error:
             if error.errno not in (errno.EINPROGRESS, errno.EWOULDBLOCK):
                 raise
-        yield self.core.Poll (self.fd, self.core.WRITABLE)
+        yield self.core.Poll (self.fd, self.core.WRITE)
 
     #--------------------------------------------------------------------------#
     # Bind                                                                     #
@@ -166,14 +166,14 @@ class AsyncSocket (object):
     def Accept (self):
         try:
             client, addr = self.sock.accept ()
-            AsyncReturn ((self.core.AsyncSocketCreate (client), addr))
+            AsyncReturn ((AsyncSocket (client, core = self.core), addr))
         except socket.error as error:
             if error.errno != errno.EAGAIN:
                 raise
 
-        yield self.core.Poll (self.fd, self.core.READABLE)
+        yield self.core.Poll (self.fd, self.core.READ)
         client, addr = self.sock.accept ()
-        AsyncReturn ((self.core.AsyncSocketCreate (client), addr))
+        AsyncReturn ((AsyncSocket (client, core = self.core), addr))
 
     #--------------------------------------------------------------------------#
     # Options                                                                  #

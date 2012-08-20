@@ -1,15 +1,17 @@
 # -*- coding: utf-8 -*-
 import sys
-import select
 import threading
-from heapq import heappush, heappop
 from time import time
+from heapq import heappush, heappop
 
+from .poller import *
 from ..future import *
+from ..async import *
 from ..wait import *
 from ..cancel import *
+from ..utils.composite import *
 
-__all__ = ('Core', 'CoreError', 'CoreStopped', 'CoreIOError', 'CoreDisconnectedError', 'CoreInvalidError')
+__all__ = ('Core', 'CoreError', 'CoreStopped', 'CoreIOError', 'CoreDisconnectedError',)
 #------------------------------------------------------------------------------#
 # Errors                                                                       #
 #------------------------------------------------------------------------------#
@@ -17,7 +19,6 @@ class CoreError (Exception): pass
 class CoreStopped (CoreError): pass
 class CoreIOError (CoreError): pass
 class CoreDisconnectedError (CoreIOError): pass
-class CoreInvalidError (CoreIOError): pass
 
 #------------------------------------------------------------------------------#
 # Core                                                                         #
@@ -26,15 +27,17 @@ class Core (object):
     instance_lock = threading.Lock ()
     instance      = None
 
-    def __init__ (self):
-        self.uid = 0
-        self.uids = set ()
-        self.running = False
+    def __init__ (self, poller_name = None):
+        # running
+        self.running = Future ()
+        self.running.ResultSet (None)
 
-        self.time_queue = []
-        self.file_queue = {}
+        # timer
+        self.timer = Timer (self)
 
-        self.poller = select.poll ()
+        # files
+        self.files  = {}
+        self.poller = Poller.FromName (poller_name)
 
     #--------------------------------------------------------------------------#
     # Instance                                                                 #
@@ -49,56 +52,28 @@ class Core (object):
     #--------------------------------------------------------------------------#
     # Sleep                                                                    #
     #--------------------------------------------------------------------------#
-    def SleepUntil (self, resume):
-        # create future
-        uid, self.uid = self.uid, self.uid + 1
-        def cancel ():
-            self.uids.discard (uid)
-            future.ErrorRaise (FutureCanceled ())
-        future = Future (Wait (uid, self.wait), Cancel (cancel))
-        self.uids.add (uid)
-
-        # enqueue
-        heappush (self.time_queue, (resume, uid, future))
-
-        return future
-
     def Sleep (self, delay):
-        return self.SleepUntil (time () + delay)
+        return self.timer.Await (time () + delay)
 
-    def Schedule (self, delay, action):
-        return self.Sleep (delay).ContinueWithFunction (lambda now: action ())
+    def SleepUntil (self, resume):
+        return self.timer.Await (resume)
 
     #--------------------------------------------------------------------------#
     # Poll                                                                     #
     #--------------------------------------------------------------------------#
-    READABLE     = select.POLLIN
-    WRITABLE     = select.POLLOUT
-    URGENT       = select.POLLPRI
-    DISCONNECTED = select.POLLHUP
-    INVALID      = select.POLLNVAL
-    ERROR        = select.POLLERR
-    ALL          = URGENT | WRITABLE | READABLE
-    ALL_ERRORS   = ERROR | DISCONNECTED | INVALID
+    READ       = Poller.READ
+    WRITE      = Poller.WRITE
+    URGENT     = Poller.URGENT
+    DISCONNECT = Poller.DISCONNECT
+    ERROR      = Poller.ERROR
 
     def Poll (self, fd, mask):
-        # create future
-        uid, self.uid = self.uid, self.uid + 1
-        def cancel ():
-            self.uids.discard (uid)
-            file.Dispatch (mask)
-            future.ErrorRaise (FutureCanceled ())
-        future = Future (Wait (uid, self.wait), Cancel (cancel))
-        self.uids.add (uid)
-
-        # enqueue
-        file = self.file_queue.get (fd)
+        file = self.files.get (fd)
         if file is None:
-            file = File (fd, self.poller)
-            self.file_queue [fd] = file
-        self.poller.register (fd, file.Enqueue (mask, uid, future))
+            file = File (fd, self)
+            self.files [fd] = file
 
-        return future
+        return file.Await (mask)
 
     #--------------------------------------------------------------------------#
     # Idle                                                                     #
@@ -107,105 +82,48 @@ class Core (object):
         return self.SleepUntil (0)
 
     #--------------------------------------------------------------------------#
-    # Run | Stop                                                               #
+    # Run                                                                      #
     #--------------------------------------------------------------------------#
     def Run (self):
-        if not self.running:
-            self.running = True
+        if self.running.IsCompleted ():
+            self.running = Future ()
             try:
                 self.wait ()
             finally:
-                self.Stop (CoreError ('Core has terminated without resolving this future'))
-
-    def Stop (self, error = None):
-        self.running = False
-        error = CoreStopped if error is None else error
-
-        # resovle time queue
-        time_queue, self.time_queue = self.time_queue, []
-        for resume, uid, future in time_queue:
-            future.ErrorRaise (error)
-
-        # resovle file queue
-        for file in list (self.file_queue.values ()):
-            for uid, future in file.Dispatch (file.mask):
-                future.ErrorRaise (error)
-
-        # clear queues
-        self.uids.clear ()
-        self.file_queue.clear ()
+                self.Dispose (CoreError ('Core has terminated without resolving this future'))
 
     #--------------------------------------------------------------------------#
     # Private                                                                  #
     #--------------------------------------------------------------------------#
     def wait (self, uids = None):
-        if uids:
-            for uid in uids:
-                if uid not in self.uids:
-                    return
+        running = AnyFuture (uid () for uid in uids) if uids else self.running
+        while not running.IsCompleted ():
+            when = self.timer.Resolve (time ())
 
-        resume = None # initalize local variable
-        while self.running or uids:
-            #------------------------------------------------------------------#
-            # Timer Queue                                                      #
-            #------------------------------------------------------------------#
-            while self.time_queue:
-                resume, uid, future = self.time_queue [0]
+            if (running.IsCompleted () or
+               (not when and self.poller.IsEmpty ())):
+                   return
 
-                if future.IsCompleted ():
-                    heappop (self.time_queue) # future has been canceled
-                    continue
-
-                if resume > time ():
-                    break
-
-                # resolve timer
-                heappop (self.time_queue)
-                self.uids.discard (uid)
-                future.ResultSet (resume)
-                resume = None
-
-                if uids and uid in uids:
-                    return
-
-            #------------------------------------------------------------------#
-            # File Queue                                                       #
-            #------------------------------------------------------------------#
-            if not self.uids: return
-            for fd, event in self.poller.poll ((resume - time ()) * 1000 if resume else None):
-                file, stop = self.file_queue.get (fd), False
-
-                if file is None:
-                    continue
-
-                if event & self.ALL_ERRORS:
-                    try:
-                        error = CoreDisconnectedError () if event & self.DISCONNECTED else \
-                                CoreInvalidError () if event & self.INVALID else \
-                                CoreIOError ()
-                        raise error
-                    except CoreError:
-                        error = sys.exc_info ()
-
-                    for uid, future in file.Dispatch (file.mask):
-                        self.uids.discard (uid)
-                        future.ErrorSet (error)
-                        if uids and uid in uids:
-                            stop = True
-
-                else:
-                    for uid, future in file.Dispatch (event):
-                        self.uids.discard (uid)
-                        future.ResultSet (event)
-                        if uids and uid in uids:
-                            stop = True
-
-                if stop:
-                    return
+            for fd, event in self.poller.Poll ((when - time ()) if when else None):
+                file = self.files.get (fd)
+                if file:
+                    file.Resolve (event)
 
     #--------------------------------------------------------------------------#
-    # Context                                                                  #
+    # Disposable                                                               #
     #--------------------------------------------------------------------------#
+    def Dispose (self, error = None):
+        # running
+        self.running.ResultSet (None)
+
+        # timer
+        self.timer.Dispose (error)
+
+        # files
+        files, self.files = self.files, {}
+        for file in self.files.values ():
+            file.Dispose (error)
+
     def __enter__ (self):
         return self
 
@@ -213,56 +131,173 @@ class Core (object):
         if et is None:
             self.Run ()
         else:
-            self.Stop (CoreError ('Core\'s context raised an error: {}'.format (eo), eo))
+            self.Dispose (CoreError ('Core\'s context raised an error: {}'.format (eo), eo))
+        return False
+
+#------------------------------------------------------------------------------#
+# Timer                                                                        #
+#------------------------------------------------------------------------------#
+class Timer (object):
+    __slots__ = ('core', 'queue',)
+
+    def __init__ (self, core):
+        self.core  = core
+        self.queue = []
+
+    #--------------------------------------------------------------------------#
+    # Await                                                                    #
+    #--------------------------------------------------------------------------#
+    def Await (self, when):
+        future = Future (
+            Wait   (lambda: future, self.core.wait),
+            Cancel (lambda: future.ErrorRaise (FutureCanceled ())))
+        heappush (self.queue, (when, id (future), future))
+        return future
+
+    #--------------------------------------------------------------------------#
+    # Resolve                                                                  #
+    #--------------------------------------------------------------------------#
+    def Resolve (self, time):
+        # find effected
+        effected = []
+        while self.queue:
+            when, future_id, future = self.queue [0]
+            if future.IsCompleted ():
+                heappop (self.queue) # future has been canceled
+                continue
+
+            if when > time:
+                break
+
+            heappop (self.queue)
+            effected.append ((future, when))
+
+        # resolve
+        for future, when in effected:
+            future.ResultSet (when)
+
+        return self.queue [0][0] if self.queue else None
+
+    #--------------------------------------------------------------------------#
+    # Disposable                                                               #
+    #--------------------------------------------------------------------------#
+    def Dispose (self, error = None):
+        error = error or CoreStopped ()
+
+        queue, self.queue = self.queue, []
+        for when, future_id, future in queue:
+            future.ErrorRaise (error)
+
+    def __enter__ (self):
+        return self
+
+    def __exit__ (self, et, eo, tb):
+        self.Dispose ()
         return False
 
 #------------------------------------------------------------------------------#
 # File                                                                         #
 #------------------------------------------------------------------------------#
 class File (object):
-    __slots__ = ('fd', 'mask', 'entries', 'poller')
+    __slots__ = ('fd', 'mask', 'entries', 'core',)
 
-    def __init__ (self, fd, poller):
-        self.fd = fd
-        self.mask = 0
+    def __init__ (self, fd, core):
+        self.fd   = fd
+        self.core = core
+
+        # state
+        self.mask    = 0
         self.entries = []
-        self.poller  = poller
 
     #--------------------------------------------------------------------------#
-    # Enqueue                                                                  #
+    # Await                                                                    #
     #--------------------------------------------------------------------------#
-    def Enqueue (self, mask, uid, future):
-        if self.mask & mask:
-            raise CoreError ('file has already been queued for this event')
+    @Async
+    def Await (self, mask):
+        if not mask or self.mask & mask:
+            raise CoreError ('File is already being awaited: {}'.format (mask))
 
+        # future
+        future = Future (
+            Wait   (lambda: future, self.core.wait),
+            Cancel (lambda: (self.dispatch (mask), future.ErrorRaise (FutureCanceled ()))))
+
+        # register
+        if self.mask:
+            self.core.poller.Modify (self.fd, self.mask | mask)
+        else:
+            self.core.poller.Register (self.fd, mask)
+
+        # update state
         self.mask |= mask
-        self.entries.append ((mask, uid, future))
+        self.entries.append ((mask, future))
 
-        return self.mask
+        AsyncReturn ((yield future))
 
     #--------------------------------------------------------------------------#
-    # Dispatch                                                                 #
+    # Resolve                                                                  #
     #--------------------------------------------------------------------------#
-    def Dispatch (self, event):
+    def Resolve (self, event):
+        if event & Poller.ERROR:
+            error = CoreDisconnectedError () if event & Poller.DISCONNECT else CoreIOError ()
+            for future in self.dispatch (self.mask):
+                future.ErrorRaise (error)
+
+        else:
+            for future in self.dispatch (event):
+                future.ResultSet (event)
+
+    #--------------------------------------------------------------------------#
+    # Private                                                                  #
+    #--------------------------------------------------------------------------#
+    def dispatch (self, event):
         entries, effected = [], []
         if not event:
             return effected
 
         # find effected
-        for mask, uid, future in self.entries:
+        for mask, future in self.entries:
             if mask & event:
-                effected.append ((uid, future))
+                effected.append (future)
             else:
-                entries.append ((mask, uid, future))
+                entries.append ((mask, future))
 
-        # update mask
+        # update state
         self.mask &= ~event
-        if self.mask:
-            self.poller.register (self.fd, self.mask)
-        else:
-            self.poller.unregister (self.fd)
         self.entries = entries
 
+        if self.mask:
+            self.core.poller.Modify (self.fd, self.mask)
+        else:
+            self.core.poller.Unregister (self.fd)
+
         return effected
+
+    def __repr__ (self): return self.__str__ ()
+    def __str__  (self):
+        events = []
+        if self.mask & Poller.READ:
+            events.append ('read')
+        if self.mask & Poller.WRITE:
+            events.append ('write')
+        if self.mask & Poller.ERROR:
+            events.append ('error')
+        return '<File fd:{} events:{}>'.format (self.fd, ','.join (events))
+
+    #--------------------------------------------------------------------------#
+    # Disposable                                                               #
+    #--------------------------------------------------------------------------#
+    def Dispose (self, error = None):
+        error = error or CoreStopped ()
+
+        for future in self.dispatch (self.mask):
+            future.ErrorRaise (error)
+
+    def __enter__ (self):
+        return self
+
+    def __exit__ (self, et, eo, tb):
+        self.Dispose ()
+        return False
 
 # vim: nu ft=python columns=120 :

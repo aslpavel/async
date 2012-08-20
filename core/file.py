@@ -39,7 +39,7 @@ class AsyncFile (object):
             data = self.buffer.read (size)
             if data is None:
                 try:
-                    yield self.core.Poll (self.fd, self.core.READABLE)
+                    yield self.core.Poll (self.fd, self.core.READ)
                 except CoreDisconnectedError: pass
             elif data:
                 AsyncReturn (data)
@@ -57,7 +57,7 @@ class AsyncFile (object):
             data = self.buffer.read (left)
             if data is None:
                 try:
-                    yield self.core.Poll (self.fd, self.core.READABLE)
+                    yield self.core.Poll (self.fd, self.core.READ)
                 except CoreDisconnectedError: pass
             elif data:
                 stream.write (data)
@@ -80,7 +80,7 @@ class AsyncFile (object):
                 raise
 
         while len (data):
-            yield self.core.Poll (self.fd, self.core.WRITABLE)
+            yield self.core.Poll (self.fd, self.core.WRITE)
             data = data [os.write (self.fd, data):]
 
     def WriteNoWait (self, data):
@@ -107,7 +107,7 @@ class AsyncFile (object):
         self.writer_queue = [data]
         try:
             while True:
-                yield self.core.Poll (self.fd, self.core.WRITABLE)
+                yield self.core.Poll (self.fd, self.core.WRITE)
 
                 # write queue
                 data = b''.join (self.writer_queue)

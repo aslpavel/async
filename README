@@ -61,8 +61,8 @@ Core:
         Run () -> None
             Run core
 
-        Stop () -> None
-            Stop core
+        Dipose () -> None
+            Dispose core
 
         #------------------------------------------------------------------#
         # Polling                                                          #
