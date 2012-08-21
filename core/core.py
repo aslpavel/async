@@ -104,7 +104,7 @@ class Core (object):
                (not when and self.poller.IsEmpty ())):
                    return
 
-            for fd, event in self.poller.Poll ((when - time ()) if when else None):
+            for fd, event in self.poller.Poll (None if when is None else max (0, when - time ())):
                 file = self.files.get (fd)
                 if file:
                     file.Resolve (event)
