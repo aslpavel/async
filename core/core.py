@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import sys
 import threading
+import itertools
 from time import time
 from heapq import heappush, heappop
 
@@ -138,10 +139,12 @@ class Core (object):
 # Timer                                                                        #
 #------------------------------------------------------------------------------#
 class Timer (object):
-    __slots__ = ('core', 'queue',)
+    __slots__ = ('core', 'index', 'queue',)
 
     def __init__ (self, core):
         self.core  = core
+
+        self.index = itertools.count ()
         self.queue = []
 
     #--------------------------------------------------------------------------#
@@ -151,7 +154,7 @@ class Timer (object):
         future = Future (
             Wait   (lambda: future, self.core.wait),
             Cancel (lambda: future.ErrorRaise (FutureCanceled ())))
-        heappush (self.queue, (when, id (future), future))
+        heappush (self.queue, (when, next (self.index), future))
         return future
 
     #--------------------------------------------------------------------------#
@@ -161,7 +164,7 @@ class Timer (object):
         # find effected
         effected = []
         while self.queue:
-            when, future_id, future = self.queue [0]
+            when, index, future = self.queue [0]
             if future.IsCompleted ():
                 heappop (self.queue) # future has been canceled
                 continue
@@ -185,7 +188,7 @@ class Timer (object):
         error = error or CoreStopped ()
 
         queue, self.queue = self.queue, []
-        for when, future_id, future in queue:
+        for when, index, future in queue:
             future.ErrorRaise (error)
 
     def __enter__ (self):
