@@ -5,7 +5,10 @@ import errno
 
 from .fd import *
 from .core import *
+from .buffer import *
+
 from ..async import *
+from ..future import *
 
 __all__ = ('AsyncFile',)
 #------------------------------------------------------------------------------#
@@ -17,10 +20,16 @@ class AsyncFile (object):
     def __init__ (self, fd, buffer_size = None, closefd = None, core = None):
         self.fd = fd
         self.core = core or Core.Instance ()
-        self.buffer_size = self.default_buffer_size if buffer_size is None else buffer_size
-        self.buffer = io.open (fd, 'rb', buffering = self.buffer_size,
+        self.buffer_size = buffer_size or self.default_buffer_size
+
+        # read
+        self.read_buffer = io.open (fd, 'rb', buffering = self.buffer_size,
             closefd = True if closefd is None else closefd)
-        self.writer_queue = None
+
+        # write
+        self.writer = SucceededFuture (None)
+        self.writer_buffer = Buffer ()
+
         self.Blocking (False)
 
     #--------------------------------------------------------------------------#
@@ -36,7 +45,7 @@ class AsyncFile (object):
     @Async
     def Read (self, size):
         while True:
-            data = self.buffer.read (size)
+            data = self.read_buffer.read (size)
             if data is None:
                 try:
                     yield self.core.Poll (self.fd, self.core.READ)
@@ -54,7 +63,7 @@ class AsyncFile (object):
     def ReadExactlyInto (self, size, stream):
         left = size
         while left:
-            data = self.buffer.read (left)
+            data = self.read_buffer.read (left)
             if data is None:
                 try:
                     yield self.core.Poll (self.fd, self.core.READ)
@@ -69,56 +78,41 @@ class AsyncFile (object):
     #--------------------------------------------------------------------------#
     # Writing                                                                  #
     #--------------------------------------------------------------------------#
-    @Async
     def Write (self, data):
-        try:
-            data = data [os.write (self.fd, data):]
-        except OSError as error:
-            if error.errno != errno.EAGAIN:
-                if error.errno == errno.EPIPE:
-                    raise CoreDisconnectedError ()
-                raise
+        if self.writer.IsCompleted ():
+            # fast write
+            try:
+                data = data [os.write (self.fd, data):]
+            except OSError as error:
+                if error.errno != errno.EAGAIN:
+                    if error.errno == errno.EPIPE:
+                        raise CoreDisconnectedError ()
+                    raise
 
-        while len (data):
-            yield self.core.Poll (self.fd, self.core.WRITE)
-            data = data [os.write (self.fd, data):]
+            # start writer
+            if data:
+                self.writer = self.writer_main (data)
+        else:
+            self.writer_buffer.Put (data)
 
-    def WriteNoWait (self, data):
-        # enqueue if writer is active
-        if self.writer_queue is not None:
-            self.writer_queue.append (data)
-            return
-
-        # try to just writer
-        try:
-            data = data [os.write (self.fd, data):]
-        except OSError as error:
-            if error.errno != errno.EAGAIN:
-                if error.errno == errno.EPIPE:
-                    raise CoreDisconnectedError ()
-                raise
-
-        # start writer
-        if data:
-            self.writer (data)
+        return self.writer
 
     @Async
-    def writer (self, data):
-        self.writer_queue = [data]
-        try:
-            while True:
-                yield self.core.Poll (self.fd, self.core.WRITE)
+    def writer_main (self, data):
+        buffer = self.writer_buffer
+        buffer.Put (data)
 
-                # write queue
-                data = b''.join (self.writer_queue)
-                data = data [os.write (self.fd, data):]
-
-                # update queue
-                if not data: return
-                del self.writer_queue [:]
-                self.writer_queue.append (data)
-        finally:
-            self.writer_queue = None
+        yield self.core.Idle () # accumulate writes
+        while buffer:
+            try:
+                buffer.Discard (os.write (self.fd, buffer.Get (self.buffer_size)))
+            except OSError as error:
+                if error.errno == errno.EAGAIN:
+                    yield self.core.Poll (self.fd, self.core.WRITE)
+                else:
+                    if error.errno == errno.EPIPE:
+                        raise CoreDisconnectedError ()
+                    raise
 
     #--------------------------------------------------------------------------#
     # Options                                                                  #
@@ -133,7 +127,7 @@ class AsyncFile (object):
     # Dispose                                                                  #
     #--------------------------------------------------------------------------#
     def Dispose (self):
-        self.buffer.close ()
+        self.read_buffer.close ()
 
     def __enter__ (self):
         return self

@@ -101,7 +101,6 @@ Asynchronous Objects:
         # Writing                                                  #
         #----------------------------------------------------------#
         Write (data) -> Future<None>
-        WriteNoWait (data) -> None
 
 
     AsyncSocket is an AsyncFile with additional methods

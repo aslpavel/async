@@ -6,7 +6,10 @@ import socket
 # local
 from .fd import *
 from .core import *
+from .buffer import *
+
 from ..async import *
+from ..future import *
 
 __all__ = ('AsyncSocket',)
 #------------------------------------------------------------------------------#
@@ -17,7 +20,10 @@ class AsyncSocket (object):
         self.sock = sock
         self.core = core or Core.Instance ()
         self.fd = sock.fileno ()
-        self.writer_queue = None
+
+        self.writer = SucceededFuture (None)
+        self.writer_buffer = Buffer ()
+
         sock.setblocking (False)
 
     #--------------------------------------------------------------------------#
@@ -84,56 +90,41 @@ class AsyncSocket (object):
     #--------------------------------------------------------------------------#
     # Writing                                                                  #
     #--------------------------------------------------------------------------#
-    @Async
     def Write (self, data):
-        try:
-            data = data [self.sock.send (data):]
-        except socket.error as error:
-            if error.errno != errno.EAGAIN:
-                if error.errno == errno.EPIPE:
-                    raise CoreDisconnectedError ()
-                raise
+        if self.writer.IsCompleted ():
+            # fast write
+            try:
+                data = data [self.sock.send (data):]
+            except socket.error as error:
+                if error.errno != errno.EAGAIN:
+                    if error.errno == errno.EPIPE:
+                        raise CoreDisconnectedError ()
+                    raise
 
-        while len (data):
-            yield self.core.Poll (self.fd, self.core.WRITE)
-            data = data [self.sock.send (data):]
+            # start writer
+            if data:
+                self.writer = self.writer_main (data)
+        else:
+            self.writer_buffer.Put (data)
 
-    def WriteNoWait (self, data):
-        # enqueue if writer is active
-        if self.writer_queue is not None:
-            self.writer_queue.append (data)
-            return
-
-        # try to just writer
-        try:
-            data = data [self.sock.send (data):]
-        except socket.error as error:
-            if error.errno != errno.EAGAIN:
-                if error.errno == errno.EPIPE:
-                    raise CoreDisconnectedError ()
-                raise
-
-        # start writer
-        if data:
-            self.writer (data)
+        return self.writer
 
     @Async
-    def writer (self, data):
-        self.writer_queue = [data]
-        try:
-            while True:
-                yield self.core.Poll (self.fd, self.core.WRITE)
+    def writer_main (self, data):
+        buffer = self.writer_buffer
+        buffer.Put (data)
 
-                # write queue
-                data = b''.join (self.writer_queue)
-                data = data [self.sock.send (data):]
-
-                # update queue
-                if not data: return
-                del self.writer_queue [:]
-                self.writer_queue.append (data)
-        finally:
-            self.writer_queue = None
+        yield self.core.Idle () # accumulate writes
+        while buffer:
+            try:
+                buffer.Discard (self.sock.send (buffer.Get (self.buffer_size)))
+            except socket.error as error:
+                if error.errno == errno.EAGAIN:
+                    yield self.core.Poll (self.fd, self.core.WRITE)
+                else:
+                    if error.errno == errno.EPIPE:
+                        raise CoreDisconnectedError ()
+                    raise
 
     #--------------------------------------------------------------------------#
     # Connect                                                                  #
