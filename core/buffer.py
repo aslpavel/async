@@ -47,7 +47,7 @@ class Buffer (object):
             offset = 0
             self.chunks.popleft ()
 
-        self.offset = size if self.chunks else 0
+        self.offset = self.offset + size if self.chunks else 0
 
     #--------------------------------------------------------------------------#
     # Empty                                                                    #
