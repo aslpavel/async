@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import io
 from collections import deque
 
 __all__ = ('Buffer',)
@@ -21,20 +20,20 @@ class Buffer (object):
         self.chunks.append (data)
 
     def Get (self, size):
-        data   = io.BytesIO ()
+        data   = []
         offset = self.offset
         for index in range (len (self.chunks)):
             chunk      = self.chunks [index]
             chunk_size = len (chunk) - offset
             if chunk_size < size:
-                data.write (chunk [offset:])
+                data.append (chunk [offset:])
                 size  -= chunk_size
                 offset = 0
             else:
-                data.write (chunk [offset:offset + size])
+                data.append (chunk [offset:offset + size])
                 break
 
-        return data.getvalue ()
+        return b''.join (data)
 
     def Discard (self, size):
         offset = self.offset
@@ -47,7 +46,7 @@ class Buffer (object):
             offset = 0
             self.chunks.popleft ()
 
-        self.offset = self.offset + size if self.chunks else 0
+        self.offset = offset + size if self.chunks else 0
 
     #--------------------------------------------------------------------------#
     # Empty                                                                    #
