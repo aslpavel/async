@@ -1,61 +1,46 @@
 # -*- coding: utf-8 -*-
 import sys
 
-from .future import *
-from .wait import *
-from .cancel import *
+from .source import FutureSource
+from .future import SucceededFuture, FailedFuture
 
-__all__ = ('Async', 'DummyAsync', 'AsyncReturn',)
+__all__ = ('Async', 'AsyncReturn', 'DummyAsync',)
 #------------------------------------------------------------------------------#
 # Async                                                                        #
 #------------------------------------------------------------------------------#
+def AsyncReturn (value): raise StopIteration (value)
 def Async (function):
-    def async_function (*args, **keys):
-        return CoroutineFuture (function (*args, **keys))
-    async_function.__name__ = function.__name__
-    return async_function
+    def coroutine_async (*args, **keys):
+        coroutine = function (*args, **keys)
+        source    = FutureSource ()
 
-def AsyncReturn (value):
-    raise StopIteration (value)
+        def continuation (future):
+            result = None
+            error  = None
 
-class CoroutineFuture (MutableFuture):
-    __slots__  = MutableFuture.__slots__ + ('coroutine', )
-    inside_wait   = RaiseWait (FutureError ('Cann\'t wait inside bound generator'))
-    inside_cancel = RaiseCancel (FutureCanceled ('Current coroutine future has been canceled'))
+            try:
+                while True:
+                    future_error = future.Error ()
+                    future = coroutine.send  (future.Result ()) if future_error is None else \
+                             coroutine.throw (*future_error)
 
-    def __init__ (self, coroutine):
-        MutableFuture.__init__ (self)
+                    if not future.IsCompleted ():
+                        future.Continue (continuation)
+                        return
 
-        self.coroutine = coroutine
-        self.resume (SucceededFuture (None))
+            except StopIteration as ret: result = ret.args [0] if ret.args else None
+            except Exception:            error  = sys.exc_info ()
 
-    #--------------------------------------------------------------------------#
-    # Private                                                                  #
-    #--------------------------------------------------------------------------#
-    def resume (self, future):
-        self.wait.Replace (self.inside_wait)
-        self.cancel.Replace (self.inside_cancel)
+            if error is not None:
+                source.ErrorSet (error)
+            else:
+                source.ResultSet (result)
 
-        result, error = None, None
-        try:
-            while True:
-                future = self.coroutine.send (future.Result ()) if future.Error () is None \
-                    else self.coroutine.throw (*future.Error ())
+        continuation (SucceededFuture (None))
+        return source.Future
 
-                if not future.IsCompleted ():
-                    self.Replace (future)
-                    future.Continue (self.resume)
-                    return
-        except StopIteration as ret:
-            result = ret.args [0] if ret.args else None
-        except Exception:
-            error = sys.exc_info ()
-
-        self.Replace ()
-        if error is not None:
-            self.ErrorSet (error)
-        else:
-            self.ResultSet (result)
+    coroutine_async.__name__ = function.__name__
+    return coroutine_async
 
 #------------------------------------------------------------------------------#
 # Dummy Async                                                                  #
@@ -66,6 +51,7 @@ def DummyAsync (function):
             return SucceededFuture (function (*args, **keys))
         except Exception:
             return FailedFuture (sys.exc_info ())
+
     dummy_async.__name__ = function.__name__
     return dummy_async
 

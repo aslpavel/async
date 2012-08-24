@@ -28,24 +28,14 @@ Future:
         #------------------------------------------------------------------#
         # Continuation                                                     #
         #------------------------------------------------------------------#
-        Continue (cont:Func<Future<T>, TResult>) -> Future<TResult>
+        Continue (cont:Func<Future<T>>) -> None
             Continue with function "cont" with future as argument
 
-        ContinueWithFunction (func:Func<T, TResult>) -> Future<TResult>
-            Continue with function "func" with result as argument
+        ContinueSafe (cont:Func<Future<T>>) -> None
+            Safe version of Continue function
 
-        ContinueWithAsync (async:Func<T, Future<TResult>>) -> Future<TResult>
-            Continue with asynchronous function "async" and pass result as argume
-
-        Unwrap () -> Future<TResult>
-            Unwrap nested future. For example Future<Future<T>> -> Future<T>
-
-    Properties:
-        Wait:
-            Wait object (callable)
-
-        Cancel:
-            Cancel object (callable)
+        ContinueWith (cont:Func<Future<T>, TResult>) -> Future<TResult>
+            Transform future with continuation
 
 Core:
 -----
@@ -53,21 +43,27 @@ Core:
 
     Methods:
         #------------------------------------------------------------------#
-        # Running                                                          #
+        # Factory                                                          #
         #------------------------------------------------------------------#
         Instance () -> None
             Singleton instance
 
-        Run () -> None
+        #------------------------------------------------------------------#
+        # Execute                                                          #
+        #------------------------------------------------------------------#
+        Execute () -> None
             Run core
 
-        Dipose () -> None
-            Dispose core
+        Iterate (block:bool = True) -> None
+            Perform single iteration
+
+        Dispose (error:Exception = None) -> None
+            Dispose core and resovle all pending futures with error
 
         #------------------------------------------------------------------#
         # Polling                                                          #
         #------------------------------------------------------------------#
-        Poll (fd:int, mask:int) -> Future<int>
+        Poll (fd:int, mask:int, cancel:?Future = None) -> Future<int>
             Wait for "mask" event on descriptor "fd" on success return event mask
             It also can raise:
                 CoreDisconnectedError - the device has been disconnected
@@ -77,13 +73,13 @@ Core:
         #------------------------------------------------------------------#
         # Sleeping                                                         #
         #------------------------------------------------------------------#
-        Sleep (delay:float) -> Future<float>
+        Sleep (delay:float, cancel:?Future = None) -> Future<float>
             Complete future after at least "delay" seconds have passed
 
-        SleepUntil (time:float) -> Future<float>
+        SleepUntil (time:float, cancel:?Future = None) -> Future<float>
             Complete future after "time" (unix time) has been reached
 
-        Idle () -> Future<None>
+        Idle (cancel:?Future = None) -> Future<None>
             Complete sometime later
 
 Asynchronous Objects:
@@ -102,15 +98,14 @@ Asynchronous Objects:
         #----------------------------------------------------------#
         Write (data) -> Future<None>
 
-
     AsyncSocket is an AsyncFile with additional methods
         #----------------------------------------------------------#
         # Socket Methods                                           #
         #----------------------------------------------------------#
+        Bind    (address)   -> None
+        Listen  (backlog)   -> None
+        Accept  ()          -> Future<(AsyncSocket, address)>
         Connect (address:?) -> Future<AsyncSocket>
-        Bind (address) -> None
-        Listen (backlog) -> None
-        Accept () -> Future<(AsyncSocket, address)>
 
 #------------------------------------------------------------------------------#
 # Functions                                                                    #
@@ -132,43 +127,33 @@ Async:
 DummyAsync:
     Wrap result of funciton into Future
 
-Sink:
+LimitAsync:
     Limit access to asynchronous function
 
 #------------------------------------------------------------------------------#
 # Example: Echo Server                                                         #
 #------------------------------------------------------------------------------#
 import socket
-from async import *
+from async import Async, AsyncSocket, Core
 
 def main ():
-    with Core.Instance ():
-        # create server socket
+    with Core.Instance () as core:
         sock = AsyncSocket (socket.socket ())
-        sock.Bind (('localhost', 8000))
+        sock.Bind   (('localhost', 8000))
         sock.Listen (10)
 
         @Async
-        def process (client):
+        def process (sock, addr):
             while True:
-                # wait for new data
-                data = yield client.Read (1 << 20)
-                if len (data) == 0:
-                    # connection has been closed
-                    return
-                # wait for data to be send
-                yield client.Write (data)
+                yield sock.Write ((yield sock.Read (1 << 20)))
 
         @Async
         def server ():
             while True:
-                # wait for new connection
-                client, addr = yield sock.Accept ()
-                # create coroutine for handling this client
-                process (client).Traceback ('process')
+                process (*(yield sock.Accept ())).Traceback ('process')
 
-        # start accepting coroutine
         server ().Traceback ('server')
+        core.Execute ()
 
 if __name__ == '__main__':
     main ()

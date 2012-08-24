@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
-from ..future import *
+from .future import Future
 
 __all__ = ('LazyFuture',)
 #------------------------------------------------------------------------------#
 # Lazy Future                                                                  #
 #------------------------------------------------------------------------------#
-class LazyFuture (BaseFuture):
-    __slots__ = BaseFuture.__slots__ + ('future', 'factory',)
+class LazyFuture (Future):
+    __slots__ = ('future', 'factory',)
 
     def __init__ (self, factory):
-        BaseFuture.__init__ (self)
+        Future.__init__ (self)
 
         self.future = None
         self.factory = factory
@@ -19,28 +19,11 @@ class LazyFuture (BaseFuture):
     #--------------------------------------------------------------------------#
     def Continue (self, cont):
         return self.futureGet ().Continue (cont)
-    def ContinueWithFunction (self, cont):
-        return self.futureGet ().ContinueWithFunction (cont)
-    def ContinueWithAsync (self, async):
-        return self.futureGet ().ContinueWithAsync (async)
 
-    def Result (self):
-        return self.futureGet ().Result ()
-    def Error (self):
-        return self.futureGet ().Error ()
-    def IsCompleted (self):
-        return self.futureGet ().IsCompleted ()
+    def Result (self):      return self.futureGet ().Result ()
+    def Error (self):       return self.futureGet ().Error ()
+    def IsCompleted (self): return self.futureGet ().IsCompleted ()
 
-    @property
-    def Wait (self):
-        return self.futureGet ().Wait ()
-
-    @property
-    def Cancel (self):
-        if self.future is None:
-            return Cancel ()
-        return self.futureGet ().Cancel ()
-    
     #--------------------------------------------------------------------------#
     # Private                                                                  #
     #--------------------------------------------------------------------------#

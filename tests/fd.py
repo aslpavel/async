@@ -2,7 +2,7 @@
 import os
 import unittest
 
-from ..core.fd import *
+from ..core.fd import FileBlocking, FileCloseOnExec
 
 __all__ = ('FileOptionsTest',)
 #------------------------------------------------------------------------------#

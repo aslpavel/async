@@ -13,6 +13,9 @@ def FileBlocking (fd, enable = None):
 def FileCloseOnExec (fd, enable = None):
     return fileOptions (fd, fcntl.F_GETFD, fcntl.F_SETFD, fcntl.FD_CLOEXEC, enable)
 
+#------------------------------------------------------------------------------#
+# Helper                                                                       #
+#------------------------------------------------------------------------------#
 def fileOptions (fd, get_option, set_option, option, enable = None):
     options = fcntl.fcntl (fd, get_option)
     if enable is None:

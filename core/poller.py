@@ -2,7 +2,7 @@
 import errno
 import select
 
-from .fd import *
+from .fd import FileCloseOnExec
 
 __all__ = ('Poller', 'EPollPoller', 'KQueuePoller', 'SelectPoller',)
 #------------------------------------------------------------------------------#
@@ -79,10 +79,10 @@ class Poller (object):
     #--------------------------------------------------------------------------#
     def Dispose (self):
         pass
-    
+
     def __enter__ (self):
         return self
-    
+
     def __exit__ (self, et, eo, tb):
         self.Dispose ()
         return False
@@ -130,7 +130,7 @@ class EPollPoller (Poller):
     #--------------------------------------------------------------------------#
     def Dispose (self):
         self.epoll.close ()
-    
+
 #------------------------------------------------------------------------------#
 # Select Poller                                                                #
 #------------------------------------------------------------------------------#
@@ -183,7 +183,7 @@ class SelectPoller (Poller):
             events [fd] = events.get (fd, 0) | Poller.ERROR
 
         return events.items ()
-            
+
 #------------------------------------------------------------------------------#
 # KQueue Poller                                                                #
 #------------------------------------------------------------------------------#

@@ -2,15 +2,13 @@
 import sys
 import threading
 import itertools
-from time import time
+from time  import time
 from heapq import heappush, heappop
 
-from .poller import *
-from ..future import *
-from ..async import *
-from ..wait import *
-from ..cancel import *
-from ..utils.composite import *
+from .poller  import Poller
+from ..async  import Async, AsyncReturn
+from ..future import FutureCanceled
+from ..source import FutureSource
 
 __all__ = ('Core', 'CoreError', 'CoreStopped', 'CoreIOError', 'CoreDisconnectedError',)
 #------------------------------------------------------------------------------#
@@ -29,16 +27,11 @@ class Core (object):
     instance      = None
 
     def __init__ (self, poller_name = None):
-        # running
-        self.running = Future ()
-        self.running.ResultSet (None)
-
-        # timer
-        self.timer = Timer (self)
-
-        # files
+        self.timer  = Timer (self)
         self.files  = {}
         self.poller = Poller.FromName (poller_name)
+
+        self.running = False
 
     #--------------------------------------------------------------------------#
     # Instance                                                                 #
@@ -53,11 +46,11 @@ class Core (object):
     #--------------------------------------------------------------------------#
     # Sleep                                                                    #
     #--------------------------------------------------------------------------#
-    def Sleep (self, delay):
-        return self.timer.Await (time () + delay)
+    def Sleep (self, delay, cancel = None):
+        return self.timer.Await (time () + delay, cancel)
 
-    def SleepUntil (self, resume):
-        return self.timer.Await (resume)
+    def SleepUntil (self, resume, cancel = None):
+        return self.timer.Await (resume, cancel)
 
     #--------------------------------------------------------------------------#
     # Poll                                                                     #
@@ -68,54 +61,67 @@ class Core (object):
     DISCONNECT = Poller.DISCONNECT
     ERROR      = Poller.ERROR
 
-    def Poll (self, fd, mask):
+    def Poll (self, fd, mask, cancel = None):
         file = self.files.get (fd)
         if file is None:
             file = File (fd, self)
             self.files [fd] = file
 
-        return file.Await (mask)
+        return file.Await (mask, cancel)
 
     #--------------------------------------------------------------------------#
     # Idle                                                                     #
     #--------------------------------------------------------------------------#
-    def Idle (self):
-        return self.SleepUntil (0)
+    def Idle (self, cancel = None):
+        return self.SleepUntil (0, cancel)
 
     #--------------------------------------------------------------------------#
-    # Run                                                                      #
+    # Execute                                                                  #
     #--------------------------------------------------------------------------#
-    def Run (self):
-        if self.running.IsCompleted ():
-            self.running = Future ()
+    def __call__ (self): self.Execute ()
+    def Execute  (self):
+        if not self.running:
+            self.running = True
             try:
-                self.wait ()
+                while self.running:
+                    # timer
+                    when = self.timer.Resolve (time ())
+
+                    # avoid blocking
+                    if (not self.running or
+                       (not when and self.poller.IsEmpty ())):
+                            return
+
+                    # files
+                    for fd, event in self.poller.Poll (None if when is None else max (0, when - time ())):
+                        file = self.files.get (fd)
+                        if file:
+                            file.Resolve (event)
+
             finally:
                 self.Dispose (CoreError ('Core has terminated without resolving this future'))
 
-    #--------------------------------------------------------------------------#
-    # Private                                                                  #
-    #--------------------------------------------------------------------------#
-    def wait (self, uids = None):
-        running = AnyFuture (uid () for uid in uids) if uids else self.running
-        while not running.IsCompleted ():
-            when = self.timer.Resolve (time ())
+    def Iterate (self, block = True):
+        # timer
+        when = self.timer.Resolve (time ())
+        if not block:
+            when = 0
 
-            if (running.IsCompleted () or
-               (not when and self.poller.IsEmpty ())):
-                   return
+        # avoid blocking
+        if not when and self.poller.IsEmpty ():
+            return
 
-            for fd, event in self.poller.Poll (None if when is None else max (0, when - time ())):
-                file = self.files.get (fd)
-                if file:
-                    file.Resolve (event)
+        # files
+        for fd, event in self.poller.Poll (None if when is None else max (0, when - time ())):
+            file = self.files.get (fd)
+            if file:
+                file.Resolve (event)
 
     #--------------------------------------------------------------------------#
     # Disposable                                                               #
     #--------------------------------------------------------------------------#
     def Dispose (self, error = None):
-        # running
-        self.running.ResultSet (None)
+        self.running = False
 
         # timer
         self.timer.Dispose (error)
@@ -129,10 +135,7 @@ class Core (object):
         return self
 
     def __exit__ (self, et, eo, tb):
-        if et is None:
-            self.Run ()
-        else:
-            self.Dispose (CoreError ('Core\'s context raised an error: {}'.format (eo), eo))
+        self.Dispose (eo)
         return False
 
 #------------------------------------------------------------------------------#
@@ -150,12 +153,13 @@ class Timer (object):
     #--------------------------------------------------------------------------#
     # Await                                                                    #
     #--------------------------------------------------------------------------#
-    def Await (self, when):
-        future = Future (
-            Wait   (lambda: future, self.core.wait),
-            Cancel (lambda: future.ErrorRaise (FutureCanceled ())))
-        heappush (self.queue, (when, next (self.index), future))
-        return future
+    def Await (self, when, cancel = None):
+        source = FutureSource ()
+        if cancel:
+            cancel.Continue (lambda future: source.ErrorRaise (FutureCanceled ()))
+
+        heappush (self.queue, (when, next (self.index), source))
+        return source.Future
 
     #--------------------------------------------------------------------------#
     # Resolve                                                                  #
@@ -164,8 +168,8 @@ class Timer (object):
         # find effected
         effected = []
         while self.queue:
-            when, index, future = self.queue [0]
-            if future.IsCompleted ():
+            when, index, source = self.queue [0]
+            if source.Future.IsCompleted ():
                 heappop (self.queue) # future has been canceled
                 continue
 
@@ -173,11 +177,11 @@ class Timer (object):
                 break
 
             heappop (self.queue)
-            effected.append ((future, when))
+            effected.append ((source, when))
 
         # resolve
-        for future, when in effected:
-            future.ResultSet (when)
+        for source, when in effected:
+            source.ResultSet (when)
 
         return self.queue [0][0] if self.queue else None
 
@@ -188,8 +192,8 @@ class Timer (object):
         error = error or CoreStopped ()
 
         queue, self.queue = self.queue, []
-        for when, index, future in queue:
-            future.ErrorRaise (error)
+        for when, index, source in queue:
+            source.ErrorRaise (error)
 
     def __enter__ (self):
         return self
@@ -216,14 +220,14 @@ class File (object):
     # Await                                                                    #
     #--------------------------------------------------------------------------#
     @Async
-    def Await (self, mask):
+    def Await (self, mask, cancel = None):
         if not mask or self.mask & mask:
             raise CoreError ('File is already being awaited: {}'.format (mask))
 
-        # future
-        future = Future (
-            Wait   (lambda: future, self.core.wait),
-            Cancel (lambda: (self.dispatch (mask), future.ErrorRaise (FutureCanceled ()))))
+        # source
+        source = FutureSource ()
+        if cancel:
+            cancel.Continue (lambda future: (self.dispatch (mask), source.ErrorRaise (FutureCanceled ())))
 
         # register
         if self.mask:
@@ -233,9 +237,9 @@ class File (object):
 
         # update state
         self.mask |= mask
-        self.entries.append ((mask, future))
+        self.entries.append ((mask, source))
 
-        AsyncReturn ((yield future))
+        AsyncReturn ((yield source.Future))
 
     #--------------------------------------------------------------------------#
     # Resolve                                                                  #
@@ -243,12 +247,12 @@ class File (object):
     def Resolve (self, event):
         if event & Poller.ERROR:
             error = CoreDisconnectedError () if event & Poller.DISCONNECT else CoreIOError ()
-            for future in self.dispatch (self.mask):
-                future.ErrorRaise (error)
+            for source in self.dispatch (self.mask):
+                source.ErrorRaise (error)
 
         else:
-            for future in self.dispatch (event):
-                future.ResultSet (event)
+            for source in self.dispatch (event):
+                source.ResultSet (event)
 
     #--------------------------------------------------------------------------#
     # Private                                                                  #
@@ -259,11 +263,11 @@ class File (object):
             return effected
 
         # find effected
-        for mask, future in self.entries:
+        for mask, source in self.entries:
             if mask & event:
-                effected.append (future)
+                effected.append (source)
             else:
-                entries.append ((mask, future))
+                entries.append ((mask, source))
 
         # update state
         self.mask &= ~event
@@ -293,8 +297,8 @@ class File (object):
     def Dispose (self, error = None):
         error = error or CoreStopped ()
 
-        for future in self.dispatch (self.mask):
-            future.ErrorRaise (error)
+        for source in self.dispatch (self.mask):
+            source.ErrorRaise (error)
 
     def __enter__ (self):
         return self

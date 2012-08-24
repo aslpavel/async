@@ -3,13 +3,11 @@ import io
 import errno
 import socket
 
-# local
-from .fd import *
-from .core import *
-from .buffer import *
-
-from ..async import *
-from ..future import *
+from .fd      import FileCloseOnExec, FileBlocking
+from .core    import Core, CoreDisconnectedError
+from .buffer  import Buffer
+from ..async  import Async, AsyncReturn
+from ..future import SucceededFuture
 
 __all__ = ('AsyncSocket',)
 #------------------------------------------------------------------------------#
