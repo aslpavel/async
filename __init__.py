@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
-from . import async, future, source, lazy, core
+from . import async, future, source, lazy, scope, core
 
 from .async  import *
 from .future import *
 from .source import *
 from .lazy   import *
+from .scope  import *
 from .core   import *
 
-__all__ = async.__all__ + future.__all__ + source.__all__ + lazy.__all__ + core.__all__
+__all__ = async.__all__ + future.__all__ + source.__all__ + lazy.__all__ + scope.__all__ + core.__all__
 
 #------------------------------------------------------------------------------#
 # Load Test Protocol                                                           #
