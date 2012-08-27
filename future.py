@@ -18,6 +18,10 @@ class FutureCanceled (FutureError): pass
 class Future (object):
     __slots__ = tuple ()
 
+    def __init__ (self):
+        if type (self) == Future:
+            raise TypeError ('Future is an abstract class')
+
     #--------------------------------------------------------------------------#
     # Continuation                                                             #
     #--------------------------------------------------------------------------#
