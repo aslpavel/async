@@ -28,7 +28,7 @@ class ScopeFuture (Future):
     #--------------------------------------------------------------------------#
     # Return                                                                   #
     #--------------------------------------------------------------------------#
-    def __call__ (self, result):
+    def __call__ (self, result = None):
         self.source.ResultSet (result)
         if self.depth > 0:
             raise ScopeReturn ()
