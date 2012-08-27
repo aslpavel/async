@@ -51,6 +51,33 @@ class Future (object):
         self.Continue (continuation_with)
         return source.Future
 
+    def ContinueWithFunction (self, func):
+        if self.IsCompleted ():
+            error = self.Error ()
+            if error is None:
+                try:
+                    return SucceededFuture (func (self.Result ()))
+                except Exception:
+                    return FailedFuture (sys.exc_info ())
+            else:
+                return FailedFuture (error)
+
+        from .source import FutureSource
+        source = FutureSource ()
+
+        def continuation_with (future):
+            error = self.Error ()
+            if error is None:
+                try:
+                    source.ResultSet (func (future.Result ()))
+                except Exception:
+                    source.ErrorSet (sys.exc_info ())
+            else:
+                return source.ErrorSet (error)
+
+        self.Continue (continuation_with)
+        return source.Future
+
     #--------------------------------------------------------------------------#
     # Result                                                                   #
     #--------------------------------------------------------------------------#
@@ -69,6 +96,8 @@ class Future (object):
     @staticmethod
     def WhenAny (futures):
         futures = tuple (futures)
+
+        from .source import FutureSource
         source  = FutureSource ()
 
         for future in futures:

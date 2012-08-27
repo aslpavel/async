@@ -31,7 +31,7 @@ class Core (object):
         self.files  = {}
         self.poller = Poller.FromName (poller_name)
 
-        self.running = False
+        self.executing = False
 
     #--------------------------------------------------------------------------#
     # Instance                                                                 #
@@ -53,6 +53,12 @@ class Core (object):
         return self.timer.Await (resume, cancel)
 
     #--------------------------------------------------------------------------#
+    # Idle                                                                     #
+    #--------------------------------------------------------------------------#
+    def Idle (self, cancel = None):
+        return self.SleepUntil (0, cancel)
+
+    #--------------------------------------------------------------------------#
     # Poll                                                                     #
     #--------------------------------------------------------------------------#
     READ       = Poller.READ
@@ -70,58 +76,52 @@ class Core (object):
         return file.Await (mask, cancel)
 
     #--------------------------------------------------------------------------#
-    # Idle                                                                     #
-    #--------------------------------------------------------------------------#
-    def Idle (self, cancel = None):
-        return self.SleepUntil (0, cancel)
-
-    #--------------------------------------------------------------------------#
     # Execute                                                                  #
     #--------------------------------------------------------------------------#
-    def __call__ (self): self.Execute ()
+    @property
+    def IsExecuting (self):
+        return self.executing
+
+    def __call__ (self): return self.Execute ()
     def Execute  (self):
-        if not self.running:
-            self.running = True
+        if not self.executing:
+            self.executing = True
             try:
-                while self.running:
-                    # timer
-                    when = self.timer.Resolve (time ())
-
-                    # avoid blocking
-                    if (not self.running or
-                       (not when and self.poller.IsEmpty ())):
-                            return
-
-                    # files
-                    for fd, event in self.poller.Poll (None if when is None else max (0, when - time ())):
-                        file = self.files.get (fd)
-                        if file:
-                            file.Resolve (event)
-
+                for none in self.Iterator ():
+                    if not self.executing:
+                        break
             finally:
                 self.Dispose (CoreError ('Core has terminated without resolving this future'))
 
-    def Iterate (self, block = True):
-        # timer
-        when = self.timer.Resolve (time ())
-        if not block:
-            when = 0
+    def __iter__ (self): return self.Iterator ()
+    def Iterator (self, block = True):
+        while True:
+            # timer
+            when = self.timer.Resolve (time ())
+            if not block:
+                when = 0
 
-        # avoid blocking
-        if not when and self.poller.IsEmpty ():
-            return
+            # interrupt to check completed futures
+            yield
 
-        # files
-        for fd, event in self.poller.Poll (None if when is None else max (0, when - time ())):
-            file = self.files.get (fd)
-            if file:
-                file.Resolve (event)
+            # avoid blocking
+            if when is None:
+                if self.poller.IsEmpty ():
+                    return
+            else:
+                when = max (0, when - time ())
+
+            # files
+            for fd, event in self.poller.Poll (when):
+                file = self.files.get (fd)
+                if file:
+                    file.Resolve (event)
 
     #--------------------------------------------------------------------------#
     # Disposable                                                               #
     #--------------------------------------------------------------------------#
     def Dispose (self, error = None):
-        self.running = False
+        self.executing = False
 
         # timer
         self.timer.Dispose (error)
@@ -273,10 +273,11 @@ class File (object):
         self.mask &= ~event
         self.entries = entries
 
-        if self.mask:
-            self.core.poller.Modify (self.fd, self.mask)
-        else:
-            self.core.poller.Unregister (self.fd)
+        if effected:
+            if self.mask:
+                self.core.poller.Modify (self.fd, self.mask)
+            else:
+                self.core.poller.Unregister (self.fd)
 
         return effected
 

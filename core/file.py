@@ -42,30 +42,30 @@ class AsyncFile (object):
     # Reading                                                                  #
     #--------------------------------------------------------------------------#
     @Async
-    def Read (self, size):
+    def Read (self, size, cancel = None):
         while True:
             data = self.read_buffer.read (size)
             if data is None:
                 try:
-                    yield self.core.Poll (self.fd, self.core.READ)
+                    yield self.core.Poll (self.fd, self.core.READ, cancel)
                 except CoreDisconnectedError: pass
             elif data:
                 AsyncReturn (data)
             else:
                 raise CoreDisconnectedError ()
 
-    def ReadExactly (self, size):
-        return (self.ReadExactlyInto (size, io.BytesIO ())
+    def ReadExactly (self, size, cancel = None):
+        return (self.ReadExactlyInto (size, io.BytesIO (), cancel)
             .ContinueWithFunction (lambda buffer: buffer.getvalue ()))
 
     @Async
-    def ReadExactlyInto (self, size, stream):
+    def ReadExactlyInto (self, size, stream, cancel = None):
         left = size
         while left:
             data = self.read_buffer.read (left)
             if data is None:
                 try:
-                    yield self.core.Poll (self.fd, self.core.READ)
+                    yield self.core.Poll (self.fd, self.core.READ, cancel)
                 except CoreDisconnectedError: pass
             elif data:
                 stream.write (data)

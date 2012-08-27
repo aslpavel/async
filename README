@@ -10,9 +10,10 @@ Future:
     Main type to keep/pass/wait result of asynchronous operation
 
     Methods:
-        #------------------------------------------------------------------#
-        # State                                                            #
-        #------------------------------------------------------------------#
+
+        #----------------------------------------------------------------------#
+        # State                                                                #
+        #----------------------------------------------------------------------#
         Result () -> T
             Get result of future
             if future is completed successfully returns result of the future
@@ -25,44 +26,49 @@ Future:
         IsCompleted () -> bool
             Check if future is completed
 
-        #------------------------------------------------------------------#
-        # Continuation                                                     #
-        #------------------------------------------------------------------#
+        #----------------------------------------------------------------------#
+        # Continuation                                                         #
+        #----------------------------------------------------------------------#
         Continue (cont:Func<Future<T>>) -> None
-            Continue with function "cont" with future as argument
+            Execute cont function when future is resolved
+            (immediately if it has already been resolved)
 
         ContinueSafe (cont:Func<Future<T>>) -> None
             Safe version of Continue function
 
         ContinueWith (cont:Func<Future<T>, TResult>) -> Future<TResult>
-            Transform future with continuation
+            Continue with function "cont" with future as argument
+
+        ContinueWithFunction (cont:Func<T, TResult>) -> Future<TResult>
+            Continue with function "cont" with result of the future as argument
 
 Core:
 -----
     Asynchronous core for IO/Sleep operations
 
     Methods:
-        #------------------------------------------------------------------#
-        # Factory                                                          #
-        #------------------------------------------------------------------#
+        #----------------------------------------------------------------------#
+        # Factory                                                              #
+        #----------------------------------------------------------------------#
         Instance () -> None
             Singleton instance
 
-        #------------------------------------------------------------------#
-        # Execute                                                          #
-        #------------------------------------------------------------------#
+        #----------------------------------------------------------------------#
+        # Execute                                                              #
+        #----------------------------------------------------------------------#
+        IsExecuting -> Bool
+            If core is beening executed
+
         Execute () -> None
             Run core
 
-        Iterate (block:bool = True) -> None
-            Perform single iteration
+        Iterator (block:bool = True) -> IEnumerable<None>
+            Iterate an return every single loop
 
-        Dispose (error:Exception = None) -> None
-            Dispose core and resovle all pending futures with error
 
-        #------------------------------------------------------------------#
-        # Polling                                                          #
-        #------------------------------------------------------------------#
+        #----------------------------------------------------------------------#
+        # Polling                                                              #
+        #----------------------------------------------------------------------#
         Poll (fd:int, mask:int, cancel:?Future = None) -> Future<int>
             Wait for "mask" event on descriptor "fd" on success return event mask
             It also can raise:
@@ -70,38 +76,47 @@ Core:
                 CoreInvalidError      - the specified fd is invalid
                 CoreIOError           - an error has occurred on the device or stream
 
-        #------------------------------------------------------------------#
-        # Sleeping                                                         #
-        #------------------------------------------------------------------#
+        #----------------------------------------------------------------------#
+        # Sleeping                                                             #
+        #----------------------------------------------------------------------#
         Sleep (delay:float, cancel:?Future = None) -> Future<float>
             Complete future after at least "delay" seconds have passed
 
         SleepUntil (time:float, cancel:?Future = None) -> Future<float>
             Complete future after "time" (unix time) has been reached
 
+        #----------------------------------------------------------------------#
+        # Idle                                                                 #
+        #----------------------------------------------------------------------#
         Idle (cancel:?Future = None) -> Future<None>
-            Complete sometime later
+            Complete inside next iteration
+
+        #----------------------------------------------------------------------#
+        # Disposable                                                           #
+        #----------------------------------------------------------------------#
+        Dispose (error:Exception = None) -> None
+            Dispose core and resovle all pending futures with error
 
 Asynchronous Objects:
 ---------------------
 
     AsyncFile:
-        #----------------------------------------------------------#
-        # Reading                                                  #
-        #----------------------------------------------------------#
+        #----------------------------------------------------------------------#
+        # Reading                                                              #
+        #----------------------------------------------------------------------#
         Read (size:int) -> Future<data>
         ReadExactly (size:int) -> Future<data>
         ReadExactlyInto (size:int, stream:stream) -> Future<stream>
 
-        #----------------------------------------------------------#
-        # Writing                                                  #
-        #----------------------------------------------------------#
+        #----------------------------------------------------------------------#
+        # Writing                                                              #
+        #----------------------------------------------------------------------#
         Write (data) -> Future<None>
 
-    AsyncSocket is an AsyncFile with additional methods
-        #----------------------------------------------------------#
-        # Socket Methods                                           #
-        #----------------------------------------------------------#
+    AsyncSocket is an AsyncFile with additional methods:
+        #----------------------------------------------------------------------#
+        # Socket methods                                                       #
+        #----------------------------------------------------------------------#
         Bind    (address)   -> None
         Listen  (backlog)   -> None
         Accept  ()          -> Future<(AsyncSocket, address)>

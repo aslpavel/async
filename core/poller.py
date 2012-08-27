@@ -92,7 +92,8 @@ class Poller (object):
 #------------------------------------------------------------------------------#
 class EPollPoller (Poller):
     def __init__ (self):
-        self.count = 0
+        self.fds   = set ()
+
         self.epoll = select.epoll ()
         FileCloseOnExec (self.epoll.fileno ())
 
@@ -104,18 +105,18 @@ class EPollPoller (Poller):
         return 'epoll'
 
     def IsEmpty (self):
-        return not self.count
+        return not self.fds
 
     def Register (self, fd, mask):
         self.epoll.register (fd, mask)
-        self.count += 1
+        self.fds.add (fd)
 
     def Modify (self, fd, mask):
         self.epoll.modify (fd, mask)
 
     def Unregister (self, fd):
-        self.count -= 1
         self.epoll.unregister (fd)
+        self.fds.discard (fd)
 
     def Poll (self, timeout):
         try:

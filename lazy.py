@@ -11,7 +11,7 @@ class LazyFuture (Future):
     def __init__ (self, factory):
         Future.__init__ (self)
 
-        self.future = None
+        self.future  = None
         self.factory = factory
 
     #--------------------------------------------------------------------------#
