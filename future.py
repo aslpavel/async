@@ -178,7 +178,7 @@ class SucceededFuture (Future):
         try:
             return SucceededFuture (continuation (self.result))
         except Exception:
-            return FailedFuture (sys.exec_info ())
+            return FailedFuture (sys.exc_info ())
 
     #--------------------------------------------------------------------------#
     # Result                                                                   #
