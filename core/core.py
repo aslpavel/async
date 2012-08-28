@@ -183,7 +183,14 @@ class Timer (object):
         for source, when in effected:
             source.ResultSet (when)
 
-        return self.queue [0][0] if self.queue else None
+        # when
+        while self.queue:
+            when, index, source = self.queue [0]
+            if not source.Future.IsCompleted ():
+                return when # future has been canceled
+
+            heappop (self.queue)
+            continue
 
     #--------------------------------------------------------------------------#
     # Disposable                                                               #

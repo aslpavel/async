@@ -46,10 +46,10 @@ class ScopeFuture (Future):
     def __exit__ (self, et, eo, tb):
         self.depth -= 1
 
-        if et != ScopeReturn:
-            self.Dispose ()
+        if et == ScopeReturn:
             return True
-        else:
-            return False
+
+        self.Dispose ()
+        return False
 
 # vim: nu ft=python columns=120 :
