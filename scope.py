@@ -24,7 +24,7 @@ class ScopeFuture (Future):
     def IsCompleted (self): return self.future.IsCompleted ()
     def Result      (sefl): return self.future.Result ()
     def Error       (self): return self.future.Error ()
-    
+
     #--------------------------------------------------------------------------#
     # Return                                                                   #
     #--------------------------------------------------------------------------#
@@ -32,17 +32,17 @@ class ScopeFuture (Future):
         self.source.ResultSet (result)
         if self.depth > 0:
             raise ScopeReturn ()
-    
+
     #--------------------------------------------------------------------------#
     # Disposable                                                               #
     #--------------------------------------------------------------------------#
     def Dispose (self):
         self.source.ResultSet (None)
-    
+
     def __enter__ (self):
         self.depth += 1
         return self
-    
+
     def __exit__ (self, et, eo, tb):
         self.depth -= 1
 
