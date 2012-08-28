@@ -176,7 +176,7 @@ class SucceededFuture (Future):
 
     def ContinueWith (self, continuation):
         try:
-            return SucceededFuture (continuation (self.result))
+            return SucceededFuture (continuation (self))
         except Exception:
             return FailedFuture (sys.exc_info ())
 
