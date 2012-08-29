@@ -128,13 +128,13 @@ class AsyncSocket (object):
     # Connect                                                                  #
     #--------------------------------------------------------------------------#
     @Async
-    def Connect (self, address):
+    def Connect (self, address, cancel = None):
         try:
             self.sock.connect (address)
         except socket.error as error:
             if error.errno not in (errno.EINPROGRESS, errno.EWOULDBLOCK):
                 raise
-        yield self.core.Poll (self.fd, self.core.WRITE)
+        yield self.core.Poll (self.fd, self.core.WRITE, cancel)
 
     #--------------------------------------------------------------------------#
     # Bind                                                                     #
@@ -152,7 +152,7 @@ class AsyncSocket (object):
     # Accept                                                                   #
     #--------------------------------------------------------------------------#
     @Async
-    def Accept (self):
+    def Accept (self, cancel = None):
         try:
             client, addr = self.sock.accept ()
             AsyncReturn ((AsyncSocket (client, core = self.core), addr))
@@ -160,7 +160,7 @@ class AsyncSocket (object):
             if error.errno != errno.EAGAIN:
                 raise
 
-        yield self.core.Poll (self.fd, self.core.READ)
+        yield self.core.Poll (self.fd, self.core.READ, cancel)
         client, addr = self.sock.accept ()
         AsyncReturn ((AsyncSocket (client, core = self.core), addr))
 
