@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
+import io
 import sys
+import traceback
 
 from .compat import Raise
 
@@ -140,24 +142,29 @@ class Future (object):
     #--------------------------------------------------------------------------#
     # Traceback                                                                #
     #--------------------------------------------------------------------------#
-    def Traceback (self, name = None):
-        import io
-        import traceback
-
+    def Traceback (self, name = None, future = None):
         def continuation (future):
             try:
                 return future.Result ()
-            except Exception:
-                with io.StringIO () if sys.version_info [0] > 2 else io.BytesIO () as stream:
-                    stream.write ('Future \'{}\' has terminated with error\n'.format (name or 'UNNAMED'))
-                    traceback.print_exc (file = stream)
+            except Exception as error:
+                stream = io.StringIO () if sys.version_info [0] > 2 else io.BytesIO ()
 
-                    sys.stderr.write (stream.getvalue ())
-                    sys.stderr.flush ()
+                # header
+                stream.write ('Future \'{}\' has terminated with error\n'.format (name or 'UNNAMED'))
+                # traceback
+                traceback.print_exc (file = stream)
+                # saved traceback
+                traceback_saved = getattr (error, '_saved_traceback', None)
+                if traceback_saved is not None:
+                    stream.write (traceback_saved)
+
+                # output
+                sys.stderr.write (stream.getvalue ())
+                sys.stderr.flush ()
 
                 raise
 
-        return self.ContinueWith (continuation)
+        return self.ContinueWith (continuation) if future is None or future else self.Continue (continuation)
 
 #------------------------------------------------------------------------------#
 # Succeeded Futures                                                            #
