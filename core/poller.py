@@ -95,7 +95,7 @@ class EPollPoller (Poller):
         self.fds   = set ()
 
         self.epoll = select.epoll ()
-        FileCloseOnExec (self.epoll.fileno ())
+        FileCloseOnExec (self.epoll.fileno (), True)
 
     #--------------------------------------------------------------------------#
     # Poller Interface                                                         #
