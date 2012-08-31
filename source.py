@@ -2,7 +2,7 @@
 import sys
 
 from .compat import Raise
-from .future import Future
+from .future import Future, FutureNotReady
 
 __all__ = ('FutureSource',)
 #------------------------------------------------------------------------------#
