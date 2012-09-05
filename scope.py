@@ -1,29 +1,24 @@
 # -*- coding: utf-8 -*-
-from .future import Future
 from .source import FutureSource
+from .delegate import DelegatedFuture
 
 __all__ = ('ScopeFuture',)
 #------------------------------------------------------------------------------#
 # ScopeFuture                                                                  #
 #------------------------------------------------------------------------------#
 class ScopeReturn (BaseException): pass
-class ScopeFuture (Future):
+class ScopeFuture (DelegatedFuture):
     __slots__ = ('source', 'future', 'depth',)
 
     def __init__ (self):
         self.source = FutureSource ()
-        self.future = self.source.Future
         self.depth  = 0
 
     #--------------------------------------------------------------------------#
-    # Future Interface                                                         #
+    # Future                                                                   #
     #--------------------------------------------------------------------------#
-    def Continue (self, continuation):
-        return self.future.Continue (continuation)
-
-    def IsCompleted (self): return self.future.IsCompleted ()
-    def Result      (sefl): return self.future.Result ()
-    def Error       (self): return self.future.Error ()
+    def FutureGet (self):
+        return self.source.Future
 
     #--------------------------------------------------------------------------#
     # Return                                                                   #

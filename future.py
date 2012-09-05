@@ -2,6 +2,10 @@
 import io
 import sys
 import traceback
+if sys.version_info [0] > 2:
+    string_type = io.StringIO
+else:
+    string_type = io.BytesIO
 
 from .compat import Raise
 
@@ -126,7 +130,8 @@ class Future (object):
     #--------------------------------------------------------------------------#
     # To String                                                                #
     #--------------------------------------------------------------------------#
-    def __str__ (self):
+    def __repr__ (self): return self.__str__ ()
+    def __str__  (self):
         if self.IsCompleted ():
             error = self.Error ()
             if error is None:
@@ -136,35 +141,35 @@ class Future (object):
         else:
             return '|? None {}|'.format (id (self))
 
-    def __repr__ (self):
-        return self.__str__ ()
-
     #--------------------------------------------------------------------------#
     # Traceback                                                                #
     #--------------------------------------------------------------------------#
-    def Traceback (self, name = None, future = None):
+    def Traceback (self, name = None, file = None):
+        file = file or sys.stderr
+
         def continuation (future):
             try:
                 return future.Result ()
             except Exception as error:
-                stream = io.StringIO () if sys.version_info [0] > 2 else io.BytesIO ()
+                stream = string_type ()
 
                 # header
                 stream.write ('Future \'{}\' has terminated with error\n'.format (name or 'UNNAMED'))
+
                 # traceback
                 traceback.print_exc (file = stream)
+
                 # saved traceback
                 traceback_saved = getattr (error, '_saved_traceback', None)
                 if traceback_saved is not None:
                     stream.write (traceback_saved)
 
                 # output
-                sys.stderr.write (stream.getvalue ())
-                sys.stderr.flush ()
+                file.write (stream.getvalue ())
+                file.flush ()
 
-                raise
-
-        return self.ContinueWith (continuation) if future is None or future else self.Continue (continuation)
+        self.Continue (continuation)
+        return self
 
 #------------------------------------------------------------------------------#
 # Succeeded Futures                                                            #

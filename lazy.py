@@ -1,33 +1,18 @@
 # -*- coding: utf-8 -*-
-from .future import Future
+from .delegate import DelegatedFuture
 
 __all__ = ('LazyFuture',)
 #------------------------------------------------------------------------------#
 # Lazy Future                                                                  #
 #------------------------------------------------------------------------------#
-class LazyFuture (Future):
+class LazyFuture (DelegatedFuture):
     __slots__ = ('future', 'factory',)
 
     def __init__ (self, factory):
-        Future.__init__ (self)
-
         self.future  = None
         self.factory = factory
 
-    #--------------------------------------------------------------------------#
-    # Future Interface                                                         #
-    #--------------------------------------------------------------------------#
-    def Continue (self, cont):
-        return self.futureGet ().Continue (cont)
-
-    def Result (self):      return self.futureGet ().Result ()
-    def Error (self):       return self.futureGet ().Error ()
-    def IsCompleted (self): return self.futureGet ().IsCompleted ()
-
-    #--------------------------------------------------------------------------#
-    # Private                                                                  #
-    #--------------------------------------------------------------------------#
-    def futureGet (self):
+    def FutureGet (self):
         if self.future is None:
             self.future = self.factory ()
         return self.future
