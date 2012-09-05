@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import sys
+import inspect
 
 from .source import FutureSource
 from .future import SucceededFuture, FailedFuture
@@ -10,6 +11,9 @@ __all__ = ('Async', 'AsyncReturn', 'DummyAsync',)
 #------------------------------------------------------------------------------#
 def AsyncReturn (value): raise StopIteration (value)
 def Async (function):
+    if not inspect.isgeneratorfunction (function):
+        raise ValueError ('Function is not a generator')
+
     def coroutine_async (*args, **keys):
         coroutine = function (*args, **keys)
         source    = FutureSource ()
