@@ -126,6 +126,7 @@ class AsyncFile (object):
     # Dispose                                                                  #
     #--------------------------------------------------------------------------#
     def Dispose (self):
+        self.core.Poll (self.fd, None) # resolve with CoreDisconnectedError
         self.read_buffer.close ()
 
     def __enter__ (self):

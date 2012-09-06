@@ -49,7 +49,6 @@ class Future (object):
             except Exception:
                 return FailedFuture (sys.exc_info ())
 
-        from .source import FutureSource
         source = FutureSource ()
 
         def continuation_with (future):
@@ -72,7 +71,6 @@ class Future (object):
             else:
                 return FailedFuture (error)
 
-        from .source import FutureSource
         source = FutureSource ()
 
         def continuation_with (future):
@@ -106,8 +104,6 @@ class Future (object):
     @staticmethod
     def WhenAny (futures):
         futures = tuple (futures)
-
-        from .source import FutureSource
         source  = FutureSource ()
 
         for future in futures:
@@ -119,8 +115,6 @@ class Future (object):
 
     @staticmethod
     def WhenAll (futures):
-        from .async import Async
-
         def wait_all ():
             for future in tuple (futures):
                 yield future
@@ -137,7 +131,7 @@ class Future (object):
             if error is None:
                 return '|> {} {}|'.format (self.Result (), id (self))
             else:
-                return '|~ {}:{} {}|'.format (error [0].__name__, error [1], id (self))
+                return '|~ {}: {} {}|'.format (error [0].__name__, error [1], id (self))
         else:
             return '|? None {}|'.format (id (self))
 
@@ -244,5 +238,11 @@ class RaisedFuture (FailedFuture):
         try: raise exception
         except Exception:
             FailedFuture.__init__ (self, sys.exc_info ())
+
+#------------------------------------------------------------------------------#
+# Dependant Types                                                              #
+#------------------------------------------------------------------------------#
+from .source import FutureSource
+from .async import Async
 
 # vim: nu ft=python columns=120 :

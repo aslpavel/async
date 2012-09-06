@@ -6,8 +6,7 @@ from time  import time
 from heapq import heappush, heappop
 
 from .poller  import Poller
-from ..async  import Async, AsyncReturn
-from ..future import FutureCanceled
+from ..future import FutureCanceled, RaisedFuture
 from ..source import FutureSource
 
 __all__ = ('Core', 'CoreError', 'CoreStopped', 'CoreIOError', 'CoreDisconnectedError',)
@@ -226,10 +225,12 @@ class File (object):
     #--------------------------------------------------------------------------#
     # Await                                                                    #
     #--------------------------------------------------------------------------#
-    @Async
     def Await (self, mask, cancel = None):
-        if not mask or self.mask & mask:
-            raise CoreError ('File is already being awaited: {}'.format (mask))
+        if mask is None:
+            self.Dispose (CoreDisconnectedError ())
+            return
+        elif mask & self.mask:
+            return RaisedFuture (CoreError ('File is already being awaited: {}'.format (mask)))
 
         # source
         source = FutureSource ()
@@ -246,7 +247,7 @@ class File (object):
         self.mask |= mask
         self.entries.append ((mask, source))
 
-        AsyncReturn ((yield source.Future))
+        return source.Future
 
     #--------------------------------------------------------------------------#
     # Resolve                                                                  #

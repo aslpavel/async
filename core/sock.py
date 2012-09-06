@@ -177,6 +177,7 @@ class AsyncSocket (object):
     # Dispose                                                                  #
     #--------------------------------------------------------------------------#
     def Dispose (self):
+        self.core.Poll (self.fd, None) # resolve with CoreDisconnectedError
         self.sock.close ()
 
     def __enter__ (self):

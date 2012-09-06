@@ -115,8 +115,8 @@ class EPollPoller (Poller):
         self.epoll.modify (fd, mask)
 
     def Unregister (self, fd):
-        self.epoll.unregister (fd)
         self.fds.discard (fd)
+        self.epoll.unregister (fd)
 
     def Poll (self, timeout):
         try:
