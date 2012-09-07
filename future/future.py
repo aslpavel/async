@@ -243,6 +243,6 @@ class RaisedFuture (FailedFuture):
 # Dependant Types                                                              #
 #------------------------------------------------------------------------------#
 from .source import FutureSource
-from .async import Async
+from ..async import Async
 
 # vim: nu ft=python columns=120 :

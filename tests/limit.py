@@ -5,9 +5,8 @@ import itertools
 import unittest
 import heapq
 
-from ..future import Future
 from ..limit  import LimitAsync
-from ..source import FutureSource
+from ..future import Future, FutureSource
 
 __all__ = ('LimitTest',)
 #------------------------------------------------------------------------------#

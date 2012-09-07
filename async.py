@@ -2,8 +2,8 @@
 import sys
 import inspect
 
-from .source import FutureSource
-from .future import SucceededFuture, FailedFuture
+from .future.future import SucceededFuture, FailedFuture
+from .future.source import FutureSource
 
 __all__ = ('Async', 'AsyncReturn', 'DummyAsync',)
 #------------------------------------------------------------------------------#

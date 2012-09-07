@@ -6,8 +6,7 @@ from time  import time
 from heapq import heappush, heappop
 
 from .poller  import Poller
-from ..future import FutureCanceled, RaisedFuture
-from ..source import FutureSource
+from ..future import FutureSource, FutureCanceled, RaisedFuture
 
 __all__ = ('Core', 'CoreError', 'CoreStopped', 'CoreIOError', 'CoreDisconnectedError',)
 #------------------------------------------------------------------------------#

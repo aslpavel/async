@@ -23,6 +23,7 @@ class ScopeFuture (DelegatedFuture):
     #--------------------------------------------------------------------------#
     # Return                                                                   #
     #--------------------------------------------------------------------------#
+    def Return   (self, resutl = None): return self (result)
     def __call__ (self, result = None):
         self.source.ResultSet (result)
         if self.depth > 0:

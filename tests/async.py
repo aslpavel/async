@@ -2,7 +2,7 @@
 import sys
 import unittest
 
-from ..source import FutureSource
+from ..future import FutureSource
 from ..async  import Async, AsyncReturn
 
 __all__ = ('AsyncTest',)

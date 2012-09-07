@@ -3,7 +3,7 @@ import sys
 from collections import deque
 
 from .async  import Async
-from .source import FutureSource
+from .future import FutureSource
 
 __all__ = ('LimitAsync',)
 #------------------------------------------------------------------------------#

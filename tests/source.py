@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-from ..compat import Raise
-from ..source import FutureSource
+from ..future import FutureSource
+from ..future.compat import Raise
 
 #------------------------------------------------------------------------------#
 # Future Source Tests                                                          #
