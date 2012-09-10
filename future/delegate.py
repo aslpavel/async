@@ -21,7 +21,7 @@ class DelegatedFuture (Future):
         return self.FutureGet ().Continue (continuation)
 
     def IsCompleted (self): return self.FutureGet ().IsCompleted ()
-    def Result      (sefl): return self.FutureGet ().Result ()
+    def Result      (self): return self.FutureGet ().Result ()
     def Error       (self): return self.FutureGet ().Error ()
 
 # vim: nu ft=python columns=120 :
