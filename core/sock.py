@@ -91,13 +91,14 @@ class AsyncSocket (object):
     def Write (self, data):
         if self.writer.IsCompleted ():
             # fast write
-            try:
-                data = data [self.sock.send (data):]
-            except socket.error as error:
-                if error.errno != errno.EAGAIN:
-                    if error.errno == errno.EPIPE:
-                        raise CoreDisconnectedError ()
-                    raise
+            if len (data) <= self.buffer_size:
+                try:
+                    data = data [self.sock.send (data):]
+                except socket.error as error:
+                    if error.errno != errno.EAGAIN:
+                        if error.errno == errno.EPIPE:
+                            raise CoreDisconnectedError ()
+                        raise
 
             # start writer
             if data:

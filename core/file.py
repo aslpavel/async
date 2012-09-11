@@ -80,13 +80,14 @@ class AsyncFile (object):
     def Write (self, data):
         if self.writer.IsCompleted ():
             # fast write
-            try:
-                data = data [os.write (self.fd, data):]
-            except OSError as error:
-                if error.errno != errno.EAGAIN:
-                    if error.errno == errno.EPIPE:
-                        raise CoreDisconnectedError ()
-                    raise
+            if len (data) <= self.buffer_size:
+                try:
+                    data = data [os.write (self.fd, data):]
+                except OSError as error:
+                    if error.errno != errno.EAGAIN:
+                        if error.errno == errno.EPIPE:
+                            raise CoreDisconnectedError ()
+                        raise
 
             # start writer
             if data:
