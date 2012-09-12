@@ -19,8 +19,9 @@ class AsyncSocket (object):
         self.core = core or Core.Instance ()
         self.fd = sock.fileno ()
 
-        self.writer = SucceededFuture (None)
-        self.writer_buffer = Buffer ()
+        # flush
+        self.flusher = SucceededFuture (None)
+        self.flusher_buffer = Buffer ()
 
         sock.setblocking (False)
 
@@ -89,34 +90,24 @@ class AsyncSocket (object):
     # Writing                                                                  #
     #--------------------------------------------------------------------------#
     def Write (self, data):
-        if self.writer.IsCompleted ():
-            # fast write
-            if len (data) <= self.buffer_size:
-                try:
-                    data = data [self.sock.send (data):]
-                except socket.error as error:
-                    if error.errno != errno.EAGAIN:
-                        if error.errno == errno.EPIPE:
-                            raise CoreDisconnectedError ()
-                        raise
+        self.flusher_buffer.Put (data)
+        if self.flusher_buffer.Length () >= self.buffer_size:
+            self.Flush ()
 
-            # start writer
-            if data:
-                self.writer = self.writer_main (data)
-        else:
-            self.writer_buffer.Put (data)
-
-        return self.writer
+    #--------------------------------------------------------------------------#
+    # Flush                                                                    #
+    #--------------------------------------------------------------------------#
+    def Flush (self):
+        if self.flusher.IsCompleted () and self.flusher_buffer:
+            self.flusher = self.flusher_main ()
+        return self.flusher
 
     @Async
-    def writer_main (self, data):
-        buffer = self.writer_buffer
-        buffer.Put (data)
-
-        yield self.core.Idle () # accumulate writes
+    def flusher_main (self):
+        buffer = self.flusher_buffer
         while buffer:
             try:
-                buffer.Discard (self.sock.send (buffer.Get (self.buffer_size)))
+                buffer.Discard (self.sock.send (buffer.Pick (self.buffer_size)))
             except socket.error as error:
                 if error.errno == errno.EAGAIN:
                     yield self.core.Poll (self.fd, self.core.WRITE)
@@ -177,9 +168,13 @@ class AsyncSocket (object):
     #--------------------------------------------------------------------------#
     # Dispose                                                                  #
     #--------------------------------------------------------------------------#
+    @Async
     def Dispose (self):
-        self.core.Poll (self.fd, None) # resolve with CoreDisconnectedError
-        self.sock.close ()
+        try:
+            yield self.Flush ()
+        finally:
+            self.core.Poll (self.fd, None) # resolve with CoreDisconnectedError
+            self.sock.close ()
 
     def __enter__ (self):
         return self
@@ -187,8 +182,5 @@ class AsyncSocket (object):
     def __exit__ (self, et, eo, tb):
         self.Dispose ()
         return False
-
-    def Close (self):
-        self.Dispose ()
 
 # vim: nu ft=python columns=120 :

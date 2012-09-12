@@ -9,6 +9,7 @@ class Buffer (object):
     def __init__ (self, data = None):
         self.offset = 0
         self.chunks = deque ()
+        self.chunks_length = 0
 
         if data:
             self.Put (data)
@@ -17,9 +18,10 @@ class Buffer (object):
     # Methods                                                                  #
     #--------------------------------------------------------------------------#
     def Put (self, data):
+        self.chunks_length += len (data)
         self.chunks.append (data)
 
-    def Get (self, size):
+    def Pick (self, size):
         data   = []
         offset = self.offset
         for index in range (len (self.chunks)):
@@ -45,15 +47,17 @@ class Buffer (object):
             size  -= chunk_size
             offset = 0
             self.chunks.popleft ()
+            self.chunks_length -= len (chunk)
 
         self.offset = offset + size if self.chunks else 0
 
-    #--------------------------------------------------------------------------#
-    # Empty                                                                    #
-    #--------------------------------------------------------------------------#
+    def __len__ (self): return self.Length ()
+    def Length  (self):
+        return self.chunks_length - self.offset
+
     def __bool__ (self):
         return bool (self.chunks)
-
     __nonzero__ = __bool__
+
 
 # vim: nu ft=python columns=120 :

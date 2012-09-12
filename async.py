@@ -35,10 +35,10 @@ def Async (function):
             except StopIteration as ret: result = ret.args [0] if ret.args else None
             except Exception:            error  = sys.exc_info ()
 
-            if error is not None:
-                source.ErrorSet (error)
-            else:
+            if error is None:
                 source.ResultSet (result)
+            else:
+                source.ErrorSet (error)
 
         continuation (SucceededFuture (None))
         return source.Future

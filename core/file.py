@@ -25,9 +25,9 @@ class AsyncFile (object):
         self.read_buffer = io.open (fd, 'rb', buffering = self.buffer_size,
             closefd = True if closefd is None else closefd)
 
-        # write
-        self.writer = SucceededFuture (None)
-        self.writer_buffer = Buffer ()
+        # flush
+        self.flusher = SucceededFuture (None)
+        self.flusher_buffer = Buffer ()
 
         self.Blocking (False)
 
@@ -78,34 +78,24 @@ class AsyncFile (object):
     # Writing                                                                  #
     #--------------------------------------------------------------------------#
     def Write (self, data):
-        if self.writer.IsCompleted ():
-            # fast write
-            if len (data) <= self.buffer_size:
-                try:
-                    data = data [os.write (self.fd, data):]
-                except OSError as error:
-                    if error.errno != errno.EAGAIN:
-                        if error.errno == errno.EPIPE:
-                            raise CoreDisconnectedError ()
-                        raise
+        self.flusher_buffer.Put (data)
+        if self.flusher_buffer.Length () >= self.buffer_size:
+            self.Flush ()
 
-            # start writer
-            if data:
-                self.writer = self.writer_main (data)
-        else:
-            self.writer_buffer.Put (data)
-
-        return self.writer
+    #--------------------------------------------------------------------------#
+    # Flush                                                                    #
+    #--------------------------------------------------------------------------#
+    def Flush (self):
+        if self.flusher.IsCompleted () and self.flusher_buffer:
+            self.flusher = self.flusher_main ()
+        return self.flusher
 
     @Async
-    def writer_main (self, data):
-        buffer = self.writer_buffer
-        buffer.Put (data)
-
-        yield self.core.Idle () # accumulate writes
+    def flusher_main (self):
+        buffer = self.flusher_buffer
         while buffer:
             try:
-                buffer.Discard (os.write (self.fd, buffer.Get (self.buffer_size)))
+                buffer.Discard (os.write (self.fd, buffer.Pick (self.buffer_size)))
             except OSError as error:
                 if error.errno == errno.EAGAIN:
                     yield self.core.Poll (self.fd, self.core.WRITE)
@@ -126,9 +116,13 @@ class AsyncFile (object):
     #--------------------------------------------------------------------------#
     # Dispose                                                                  #
     #--------------------------------------------------------------------------#
+    @Async
     def Dispose (self):
-        self.core.Poll (self.fd, None) # resolve with CoreDisconnectedError
-        self.read_buffer.close ()
+        try:
+            yield self.Flush ()
+        finally:
+            self.core.Poll (self.fd, None) # resolve with CoreDisconnectedError
+            self.read_buffer.close ()
 
     def __enter__ (self):
         return self
@@ -136,8 +130,5 @@ class AsyncFile (object):
     def __exit__ (self, et, eo, tb):
         self.Dispose ()
         return False
-
-    def Close (self):
-        self.Dispose ()
 
 # vim: nu ft=python columns=120 :
