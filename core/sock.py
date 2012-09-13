@@ -14,10 +14,13 @@ __all__ = ('AsyncSocket',)
 # Asynchronous Socket                                                          #
 #------------------------------------------------------------------------------#
 class AsyncSocket (object):
-    def __init__ (self, sock, core = None):
+    default_buffer_size = 1 << 16
+
+    def __init__ (self, sock, buffer_size = None, core = None):
         self.sock = sock
-        self.core = core or Core.Instance ()
         self.fd = sock.fileno ()
+        self.core = core or Core.Instance ()
+        self.buffer_size = buffer_size or self.default_buffer_size
 
         # flush
         self.flusher = SucceededFuture (None)
@@ -127,6 +130,7 @@ class AsyncSocket (object):
             if error.errno not in (errno.EINPROGRESS, errno.EWOULDBLOCK):
                 raise
         yield self.core.Poll (self.fd, self.core.WRITE, cancel)
+        AsyncReturn (self)
 
     #--------------------------------------------------------------------------#
     # Bind                                                                     #

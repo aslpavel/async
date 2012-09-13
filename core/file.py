@@ -18,8 +18,8 @@ class AsyncFile (object):
 
     def __init__ (self, fd, buffer_size = None, closefd = None, core = None):
         self.fd = fd
-        self.core = core or Core.Instance ()
         self.buffer_size = buffer_size or self.default_buffer_size
+        self.core = core or Core.Instance ()
 
         # read
         self.read_buffer = io.open (fd, 'rb', buffering = self.buffer_size,
