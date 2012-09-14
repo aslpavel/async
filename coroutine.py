@@ -30,7 +30,7 @@ def CoroutineAwait (future):
 #------------------------------------------------------------------------------#
 def Coroutine (function):
     def coroutine_async (*args, **keys):
-        coroutine = CoroutineGreenlet (lambda future: function (*args, **keys))
+        coroutine = CoroutineGreenlet (lambda _: function (*args, **keys))
         source    = FutureSource ()
 
         def continuation (future):

@@ -18,8 +18,8 @@ class FutureSourceTest (unittest.TestCase):
         # continue
         future.Continue     (lambda f: results.append (f))
         future.ContinueSafe (lambda f: results.append (f))
-        future_with  = future.ContinueWith (lambda f: 'done')
-        future_error = future.ContinueWith (lambda f: Raise (ValueError, ValueError ()))
+        future_with  = future.ContinueWith (lambda _: 'done')
+        future_error = future.ContinueWith (lambda _: Raise (ValueError, ValueError ()))
 
         self.assertEqual (results, [])
         self.assertFalse (future_with.IsCompleted ())
@@ -37,7 +37,7 @@ class FutureSourceTest (unittest.TestCase):
         del results [:]
         future.Continue (lambda f: results.append (f))
         future.ContinueSafe (lambda f: results.append (f))
-        future_with = future.ContinueWith (lambda f: 'done')
+        future_with = future.ContinueWith (lambda _: 'done')
 
         self.assertEqual (results, [future] * 2)
         self.assertEqual (future_with.Result (), 'done')
@@ -52,7 +52,7 @@ class FutureSourceTest (unittest.TestCase):
         # continue
         future.Continue     (lambda f: results.append (f))
         future.ContinueSafe (lambda f: results.append (f))
-        future_with = future.ContinueWith (lambda f: 'done')
+        future_with = future.ContinueWith (lambda _: 'done')
 
         self.assertFalse (future_with.IsCompleted ())
         self.assertEqual (results, [])
@@ -69,7 +69,7 @@ class FutureSourceTest (unittest.TestCase):
         del results [:]
         future.Continue (lambda f: results.append (f))
         future.ContinueSafe (lambda f: results.append (f))
-        future_with = future.ContinueWith (lambda f: 'done')
+        future_with = future.ContinueWith (lambda _: 'done')
 
         self.assertEqual (results, [future] * 2)
         self.assertEqual (future_with.Result (), 'done')
