@@ -140,11 +140,9 @@ class Core (object):
 # Timer                                                                        #
 #------------------------------------------------------------------------------#
 class Timer (object):
-    __slots__ = ('core', 'index', 'queue',)
+    __slots__ = ('index', 'queue',)
 
     def __init__ (self, core):
-        self.core  = core
-
         self.index = itertools.count ()
         self.queue = []
 

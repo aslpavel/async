@@ -14,37 +14,31 @@ def Async (function):
     if not inspect.isgeneratorfunction (function):
         raise ValueError ('Function is not a generator')
 
-    def coroutine_async (*args, **keys):
-        coroutine = function (*args, **keys)
+    def generator_async (*args, **keys):
+        generator = function (*args, **keys)
         source    = FutureSource ()
 
         def continuation (future):
-            result = None
-            error  = None
-
             try:
                 while True:
-                    future_error = future.Error ()
-                    future = coroutine.send  (future.Result ()) if future_error is None else \
-                             coroutine.throw (*future_error)
+                    error  = future.Error ()
+                    future = generator.send  (future.Result ()) if error is None else \
+                             generator.throw (*error)
 
                     if not future.IsCompleted ():
                         future.Continue (continuation)
                         return
 
-            except StopIteration as ret: result = ret.args [0] if ret.args else None
-            except Exception:            error  = sys.exc_info ()
-
-            if error is None:
-                source.ResultSet (result)
-            else:
-                source.ErrorSet (error)
+            except StopIteration as result:
+                source.ResultSet (result.args [0] if result.args else None)
+            except Exception:
+                source.ErrorSet (sys.exc_info ())
 
         continuation (SucceededFuture (None))
         return source.Future
 
-    coroutine_async.__name__ = function.__name__
-    return coroutine_async
+    generator_async.__name__ = function.__name__
+    return generator_async
 
 #------------------------------------------------------------------------------#
 # Dummy Async                                                                  #
