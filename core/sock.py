@@ -32,12 +32,16 @@ class AsyncSocket (object):
     # Properties                                                               #
     #--------------------------------------------------------------------------#
     @property
-    def Socket (self):
-        return self.sock
-
-    @property
     def Core (self):
         return self.core
+
+    @property
+    def Fd (self):
+        return self.fd
+
+    @property
+    def Socket (self):
+        return self.sock
 
     #--------------------------------------------------------------------------#
     # Reading                                                                  #

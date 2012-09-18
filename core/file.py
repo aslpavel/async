@@ -38,6 +38,10 @@ class AsyncFile (object):
     def Core (self):
         return self.core
 
+    @property
+    def Fd (self):
+        return self.fd
+
     #--------------------------------------------------------------------------#
     # Reading                                                                  #
     #--------------------------------------------------------------------------#
