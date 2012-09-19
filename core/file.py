@@ -47,8 +47,9 @@ class AsyncFile (object):
     #--------------------------------------------------------------------------#
     @Async
     def Read (self, size, cancel = None):
+        buffer = self.read_buffer
         while True:
-            data = self.read_buffer.read (size)
+            data = b'' if buffer.closed else buffer.read (size)
             if data is None:
                 try:
                     yield self.core.Poll (self.fd, self.core.READ, cancel)
@@ -64,9 +65,10 @@ class AsyncFile (object):
 
     @Async
     def ReadExactlyInto (self, size, stream, cancel = None):
-        left = size
+        left   = size
+        buffer = self.read_buffer
         while left:
-            data = self.read_buffer.read (left)
+            data = b'' if buffer.closed else buffer.read (left)
             if data is None:
                 try:
                     yield self.core.Poll (self.fd, self.core.READ, cancel)

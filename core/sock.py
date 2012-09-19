@@ -48,9 +48,10 @@ class AsyncSocket (object):
     #--------------------------------------------------------------------------#
     @Async
     def Read (self, size, cancel = None):
+        sock = self.sock
         while True:
             try:
-                data = self.sock.recv (size)
+                data = None if sock.closed else sock.recv (size)
                 if not data:
                     raise CoreDisconnectedError ()
                 AsyncReturn (data)
@@ -72,9 +73,10 @@ class AsyncSocket (object):
     @Async
     def ReadExactlyInto (self, size, stream, cancel = None):
         left = size
+        sock = self.sock
         while left:
             try:
-                data = self.sock.recv (left)
+                data = None if sock.closed else sock.recv (left)
                 if not data:
                     raise CoreDisconnectedError ()
                 stream.write (data)

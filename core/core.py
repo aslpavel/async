@@ -35,11 +35,17 @@ class Core (object):
     # Instance                                                                 #
     #--------------------------------------------------------------------------#
     @classmethod
-    def Instance (cls, factory = None):
+    def Instance (cls):
         with cls.instance_lock:
             if cls.instance is None:
-                cls.instance = factory () if factory else Core ()
+                cls.instance = Core ()
             return cls.instance
+
+    @classmethod
+    def InstanceSet (cls, instance):
+        with cls.instance_lock:
+            cls.instance = instance
+        return instance
 
     #--------------------------------------------------------------------------#
     # Sleep                                                                    #
