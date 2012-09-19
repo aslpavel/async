@@ -65,7 +65,9 @@ class ThreadPool (object):
     @classmethod
     def InstanceSet (cls, instance):
         with cls.instance_lock:
-            cls.instance = instance
+            instance_prev, cls.instance = cls.instance, instance
+        if instance_prev is not None and instance_prev != instance:
+            instance_prev.Dispose ()
         return instance
 
     #--------------------------------------------------------------------------#
@@ -110,16 +112,20 @@ class ThreadPool (object):
                 except Exception: pass
 
         except CoreDisconnectedError: pass
+        finally:
+            self.Dispose ()
 
     def thread_main (self):
         while True:
             with self.in_lock:
-                while not self.in_queue:
+                while not self.in_queue and not self.disposed:
                     self.wait += 1
                     self.in_cond.wait ()
                     self.wait -= 1
-                    if self.disposed:
-                        return
+
+                if self.disposed:
+                    return
+
                 source, action, args, keys = self.in_queue.popleft ()
 
             result, error = None, None

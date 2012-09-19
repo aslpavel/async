@@ -44,7 +44,9 @@ class Core (object):
     @classmethod
     def InstanceSet (cls, instance):
         with cls.instance_lock:
-            cls.instance = instance
+            instance_prev, cls.instance = cls.instance, instance
+        if instance_prev is not None and instance_prev != instance:
+            instance_prev.Dispose ()
         return instance
 
     #--------------------------------------------------------------------------#
