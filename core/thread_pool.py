@@ -63,11 +63,11 @@ class ThreadPool (object):
             return cls.instance
 
     @classmethod
-    def InstanceSet (cls, instance): 
+    def InstanceSet (cls, instance):
         with cls.instance_lock:
             cls.instance = instance
         return instance
-    
+
     #--------------------------------------------------------------------------#
     # Enqueue                                                                  #
     #--------------------------------------------------------------------------#
@@ -130,14 +130,14 @@ class ThreadPool (object):
 
             with self.out_lock:
                 out_uid = next (self.out_uid)
-                self.out_queue [out_uid] = source, result, error 
+                self.out_queue [out_uid] = source, result, error
                 try:
                     os.write (self.out_pipe, out_uid)
                 except OSError as error:
                     if error.errno == errno.EBADF:
                         return
                     raise
-                
+
     #--------------------------------------------------------------------------#
     # Disposable                                                               #
     #--------------------------------------------------------------------------#
@@ -158,14 +158,14 @@ class ThreadPool (object):
         # resolve futures
         for source, action, args, keys in in_queue:
             source.ErrorRaise (ThreadPoolError ('Thread poll has been disposed'))
-    
+
         # close pipe
         os.close (self.out_pipe)
         self.in_pipe.Dispose ()
 
     def __enter__ (self):
         return self
-    
+
     def __exit__ (self, et, eo, tb):
         self.Dispose ()
         return False
