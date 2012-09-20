@@ -31,7 +31,8 @@ class Future (object):
     #--------------------------------------------------------------------------#
     # Continuation                                                             #
     #--------------------------------------------------------------------------#
-    def Continue (self, continuation):
+    def __rshift__ (self, continuation): return self.Continue (continuation)
+    def Continue   (self, continuation):
         raise NotImplementedError ()
 
     def ContinueSafe (self, continuation):
@@ -42,6 +43,7 @@ class Future (object):
 
         self.Continue (continuation_safe)
 
+    def __ge__       (self, continuation): return self.ContinueWith (continuation)
     def ContinueWith (self, continuation):
         if self.IsCompleted ():
             try:

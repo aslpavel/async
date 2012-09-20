@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
 import sys
-import errno
 import struct
 import atexit
 import itertools
@@ -18,6 +17,7 @@ __all__ = ('ThreadPool', 'ThreadPoolError',)
 # Thread Pool                                                                  #
 #------------------------------------------------------------------------------#
 class ThreadPoolError (Exception): pass
+class ThreadPoolExit (BaseException): pass
 class ThreadPool (object):
     uid_struct    = struct.Struct ('Q')
     instance_lock = threading.Lock ()
@@ -29,17 +29,18 @@ class ThreadPool (object):
 
         self.size     = size
         self.wait     = 0
-        self.threads  = []
+        self.threads  = set ()
         self.disposed = False
 
         # in queue
-        self.in_lock  = threading.Lock ()
+        self.in_lock  = threading.RLock ()
         self.in_cond  = threading.Condition (self.in_lock)
         self.in_queue = deque ()
 
         # out queue
         self.out_uid = (self.uid_struct.pack (uid) for uid in itertools.count ())
-        self.out_lock  = threading.Lock ()
+        self.out_uid_dispose = next (self.out_uid)
+        self.out_lock = threading.RLock ()
         self.out_queue = {}
 
         # pipe
@@ -51,6 +52,21 @@ class ThreadPool (object):
 
         # dispose on quit
         atexit.register (self.Dispose)
+
+    #--------------------------------------------------------------------------#
+    # Properties                                                               #
+    #--------------------------------------------------------------------------#
+    def Size (self, size = None):
+        if size is None:
+            return self.size
+        elif size <= 0:
+            raise ValueError ('Size must be > 0')
+        else:
+            with self.in_lock:
+                self.size = size
+                if len (self.threads) > size:
+                    self.thread_exit (len (self.threads) - size)
+                return size
 
     #--------------------------------------------------------------------------#
     # Instance                                                                 #
@@ -86,7 +102,7 @@ class ThreadPool (object):
                 thread = threading.Thread (target = self.thread_main)
                 thread.daemon = True
                 thread.start ()
-                self.threads.append (thread)
+                self.threads.add (thread)
 
             else:
                 self.in_cond.notify ()
@@ -101,6 +117,7 @@ class ThreadPool (object):
         try:
             while True:
                 uid = yield self.in_pipe.ReadExactly (self.uid_struct.size)
+                if uid == self.out_uid_dispose: return
                 with self.out_lock:
                     source, result, error = self.out_queue.pop (uid)
 
@@ -115,58 +132,65 @@ class ThreadPool (object):
         finally:
             self.Dispose ()
 
-    def thread_main (self):
-        while True:
-            with self.in_lock:
-                while not self.in_queue and not self.disposed:
-                    self.wait += 1
-                    self.in_cond.wait ()
-                    self.wait -= 1
+    def thread_exit (self, count = None):
+        def action_exit (): raise ThreadPoolExit ()
+        with self.in_lock:
+            count = count or len (self.threads)
+            self.in_queue.extendleft ((None, action_exit, [], {}) for _ in range (count))
+            self.in_cond.notify (count)
 
-                if self.disposed:
+    def thread_main (self):
+        try:
+            while True:
+                with self.in_lock:
+                    while not self.in_queue:
+                        self.wait += 1
+                        self.in_cond.wait ()
+                        self.wait -= 1
+
+                    source, action, args, keys = self.in_queue.popleft ()
+
+                result, error = None, None
+                try:
+                    result = action (*args, **keys)
+                except Exception:
+                    error = sys.exc_info ()
+                except ThreadPoolExit:
                     return
 
-                source, action, args, keys = self.in_queue.popleft ()
-
-            result, error = None, None
-            try:
-                result = action (*args, **keys)
-            except Exception:
-                error = sys.exc_info ()
-
-            with self.out_lock:
-                out_uid = next (self.out_uid)
-                self.out_queue [out_uid] = source, result, error
-                try:
+                with self.out_lock:
+                    out_uid = next (self.out_uid)
+                    self.out_queue [out_uid] = source, result, error
                     os.write (self.out_pipe, out_uid)
-                except OSError as error:
-                    if error.errno == errno.EBADF:
-                        return
-                    raise
+        finally:
+            with self.in_lock:
+                self.threads.discard (threading.current_thread ())
 
     #--------------------------------------------------------------------------#
     # Disposable                                                               #
     #--------------------------------------------------------------------------#
     def Dispose (self):
-        if self.disposed:
-            return
-        self.disposed = True
-
-        # wake threads
         with self.in_lock:
-            in_queue, self.in_queue = self.in_queue, deque ()
-            self.in_cond.notify_all ()
+            if self.disposed:
+                return
+            elif threading.current_thread () in self.threads:
+                # we are inside thread pool thread
+                self.Enqueue (lambda: os.write (self.out_pipe, self.out_uid_dispose))
+                return
+            self.disposed = True
 
-        # wait threads
-        for thread in self.threads:
+        # unregister dispose if possible
+        getattr (atexit, 'unregister', lambda _: None) (self.Dispose)
+
+        # terminate threads
+        self.thread_exit ()
+        for thread in tuple (self.threads):
             thread.join ()
+        os.close (self.out_pipe)
 
         # resolve futures
-        for source, action, args, keys in in_queue:
+        for source, action, args, keys in self.in_queue:
             source.ErrorRaise (ThreadPoolError ('Thread poll has been disposed'))
-
-        # close pipe
-        os.close (self.out_pipe)
         self.in_pipe.Dispose ()
 
     def __enter__ (self):
