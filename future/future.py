@@ -22,6 +22,14 @@ class FutureCanceled (FutureError): pass
 # Future                                                                       #
 #------------------------------------------------------------------------------#
 class Future (object):
+    """Future object
+
+    Future object is either resolved and contains result of the operation
+    (value or exception) or unresolved and represents ongoing operation. In any
+    case you can continue this object with continuation function witch will be
+    called upon future being resolved or immediately if it has already been
+    resolved.
+    """
     __slots__ = tuple ()
 
     def __init__ (self):
@@ -31,11 +39,24 @@ class Future (object):
     #--------------------------------------------------------------------------#
     # Continuation                                                             #
     #--------------------------------------------------------------------------#
-    def __rshift__ (self, continuation): return self.Continue (continuation)
+    def __rshift__ (self, continuation):
+        """Same as Continue
+        """
+        return self.Continue (continuation)
+
     def Continue   (self, continuation):
+        """Continue with continuation
+
+        Resolved future is passed as only argument of the continuation.
+        """
         raise NotImplementedError ()
 
     def ContinueSafe (self, continuation):
+        """Continue with continuation
+
+        Resolved future is passed as only argument of the continuation. If
+        continuation raised an error its caught.
+        """
         def continuation_safe (future):
             try:
                 continuation (future)
@@ -43,8 +64,17 @@ class Future (object):
 
         self.Continue (continuation_safe)
 
-    def __ge__       (self, continuation): return self.ContinueWith (continuation)
+    def __ge__       (self, continuation):
+        """Same as ContinueWith
+        """
+        return self.ContinueWith (continuation)
+
     def ContinueWith (self, continuation):
+        """Continue with continuation
+
+        Resolved future is passed as only argument of the continuation. Returns
+        new future with result of the continuation.
+        """
         if self.IsCompleted ():
             try:
                 return SucceededFuture (continuation (self))
@@ -63,6 +93,11 @@ class Future (object):
         return source.Future
 
     def ContinueWithFunction (self, func):
+        """Continue with function
+
+        Result of resolved future is passed as only argument of the function.
+        Returns new future with result of function.
+        """
         if self.IsCompleted ():
             error = self.Error ()
             if error is None:
@@ -92,12 +127,25 @@ class Future (object):
     # Result                                                                   #
     #--------------------------------------------------------------------------#
     def Result (self):
+        """Result of the future
+
+        Return result of the future. If future is not resolved raises
+        FutureNotReady exception. If future was resolved with error raises
+        this error
+        """
         raise NotImplementedError ()
 
     def Error (self):
+        """Error of the future if any
+
+        Returns tuple (ErrorType, ErrorObject, Traceback) if future was resolved
+        with error None otherwise.
+        """
         raise NotImplementedError ()
 
     def IsCompleted (self):
+        """Future is completed
+        """
         raise NotImplementedError ()
 
     #--------------------------------------------------------------------------#
@@ -105,6 +153,11 @@ class Future (object):
     #--------------------------------------------------------------------------#
     @staticmethod
     def WhenAny (futures):
+        """Any future
+
+        Returns future witch will be resolved with the first resolved future
+        from future set.
+        """
         futures = tuple (futures)
         source  = FutureSource ()
 
@@ -117,6 +170,12 @@ class Future (object):
 
     @staticmethod
     def WhenAll (futures):
+        """All future
+
+        Returns future witch will be resolved with None, if all futures was
+        successfully completed, otherwise with the same error as the first
+        unsuccessful future.
+        """
         def wait_all ():
             for future in tuple (futures):
                 yield future
@@ -126,8 +185,14 @@ class Future (object):
     #--------------------------------------------------------------------------#
     # To String                                                                #
     #--------------------------------------------------------------------------#
-    def __repr__ (self): return self.__str__ ()
+    def __repr__ (self):
+        """String representation of the future
+        """
+        return self.__str__ ()
+
     def __str__  (self):
+        """String representation of the future
+        """
         if self.IsCompleted ():
             error = self.Error ()
             if error is None:
@@ -141,6 +206,8 @@ class Future (object):
     # Traceback                                                                #
     #--------------------------------------------------------------------------#
     def Traceback (self, name = None, file = None):
+        """Print traceback when and only when future was resolved with error
+        """
         file = file or sys.stderr
 
         def continuation (future):
@@ -171,6 +238,8 @@ class Future (object):
 # Succeeded Futures                                                            #
 #------------------------------------------------------------------------------#
 class SucceededFuture (Future):
+    """Future resolve wit result
+    """
     __slots__ = ('result',)
 
     def __init__ (self, result):
@@ -204,6 +273,8 @@ class SucceededFuture (Future):
 # Failed Future                                                                #
 #------------------------------------------------------------------------------#
 class FailedFuture (Future):
+    """Future resolved with error
+    """
     __slots__ = ('error',)
 
     def __init__ (self, error):
@@ -234,6 +305,8 @@ class FailedFuture (Future):
 # Raised Future                                                                #
 #------------------------------------------------------------------------------#
 class RaisedFuture (FailedFuture):
+    """Future resolved with error
+    """
     __slots__ = FailedFuture.__slots__
 
     def __init__ (self, exception):

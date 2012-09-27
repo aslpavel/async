@@ -9,8 +9,21 @@ __all__ = ('Async', 'AsyncReturn', 'DummyAsync',)
 #------------------------------------------------------------------------------#
 # Async                                                                        #
 #------------------------------------------------------------------------------#
-def AsyncReturn (value): raise StopIteration (value)
+def AsyncReturn (value):
+    """Return value inside asynchronous function
+    """
+    raise StopIteration (value)
+
 def Async (function):
+    """Asynchronous function
+
+    Create asynchronous function out of the generator function. When
+    asynchronous function is called generator is created and started. Generator
+    must yield only future objects, when such future object is resolved, the
+    generator is continued with result of this future. First argument if any of
+    StopIteration exception is used as result of asynchronous function,
+    otherwise None is used.
+    """
     if not inspect.isgeneratorfunction (function):
         raise ValueError ('Function is not a generator')
 
@@ -44,6 +57,10 @@ def Async (function):
 # Dummy Async                                                                  #
 #------------------------------------------------------------------------------#
 def DummyAsync (function):
+    """Dummy asynchronous function
+
+    Create pseudo asynchronous function out of passed function
+    """
     def dummy_async (*args, **keys):
         try:
             return SucceededFuture (function (*args, **keys))
