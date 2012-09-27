@@ -21,6 +21,11 @@ class CoreDisconnectedError (CoreIOError): pass
 # Core                                                                         #
 #------------------------------------------------------------------------------#
 class Core (object):
+    """Core object
+
+    Asynchronous I/O and Timer dispatcher. Executes until all requested
+    asynchronous operation are completed or when object itself is disposed.
+    """
     instance_lock = threading.Lock ()
     instance      = None
 
@@ -36,6 +41,8 @@ class Core (object):
     #--------------------------------------------------------------------------#
     @classmethod
     def Instance (cls):
+        """Get global core instance, create if it is None
+        """
         with cls.instance_lock:
             if cls.instance is None:
                 cls.instance = Core ()
@@ -43,6 +50,8 @@ class Core (object):
 
     @classmethod
     def InstanceSet (cls, instance):
+        """Set global core instance
+        """
         with cls.instance_lock:
             instance_prev, cls.instance = cls.instance, instance
         if instance_prev is not None and instance_prev != instance:
@@ -53,15 +62,28 @@ class Core (object):
     # Sleep                                                                    #
     #--------------------------------------------------------------------------#
     def Sleep (self, delay, cancel = None):
+        """Resolved after specified delay in seconds
+
+        Result of the future is scheduled time.
+        """
         return self.timer.Await (time () + delay, cancel)
 
     def SleepUntil (self, resume, cancel = None):
+        """Resolved when specified unix time is reached
+
+        Result of the future is scheduled time or FutureCanceled if it was
+        cancelled.
+        """
         return self.timer.Await (resume, cancel)
 
     #--------------------------------------------------------------------------#
     # Idle                                                                     #
     #--------------------------------------------------------------------------#
     def Idle (self, cancel = None):
+        """Resolved when new iteration loop is started.
+
+        Result of the future is None of FutureCanceled if it was cancelled.
+        """
         return self.SleepUntil (0, cancel)
 
     #--------------------------------------------------------------------------#
@@ -74,6 +96,13 @@ class Core (object):
     ERROR      = Poller.ERROR
 
     def Poll (self, fd, mask, cancel = None):
+        """Poll file descriptor
+
+        Poll file descriptor for events specified by mask. If mask is None then
+        specified descriptor is unregistred and all pending events are resolved
+        with CoreDisconnectedError, otherwise future is resolved with bitmap of
+        the events happened of file descriptor or error if any.
+        """
         file = self.files.get (fd)
         if file is None:
             file = File (fd, self)
@@ -86,10 +115,14 @@ class Core (object):
     #--------------------------------------------------------------------------#
     @property
     def IsExecuting (self):
+        """Core is executing
+        """
         return self.executing
 
     def __call__ (self): return self.Execute ()
     def Execute  (self):
+        """Execute core
+        """
         if not self.executing:
             self.executing = True
             try:
@@ -101,6 +134,8 @@ class Core (object):
 
     def __iter__ (self): return self.Iterator ()
     def Iterator (self, block = True):
+        """Make single iteration inside core's execution loop
+        """
         while True:
             # timer
             when = self.timer.Resolve (time ())
@@ -127,6 +162,11 @@ class Core (object):
     # Disposable                                                               #
     #--------------------------------------------------------------------------#
     def Dispose (self, error = None):
+        """Dispose core
+
+        If there is any unresolved asynchronous operations, they are resolved
+        either resolved with error (optional argument) or CoreStopped exception.
+        """
         self.executing = False
 
         # timer
@@ -148,6 +188,8 @@ class Core (object):
 # Timer                                                                        #
 #------------------------------------------------------------------------------#
 class Timer (object):
+    """Timer awaiter
+    """
     __slots__ = ('index', 'queue',)
 
     def __init__ (self, core):
@@ -158,6 +200,8 @@ class Timer (object):
     # Await                                                                    #
     #--------------------------------------------------------------------------#
     def Await (self, when, cancel = None):
+        """Await time specified by when argument
+        """
         source = FutureSource ()
         if cancel:
             cancel.Continue (lambda _: source.ErrorRaise (FutureCanceled ()))
@@ -169,12 +213,14 @@ class Timer (object):
     # Resolve                                                                  #
     #--------------------------------------------------------------------------#
     def Resolve (self, time):
+        """Resolve all pending event scheduled before time
+        """
         # find effected
         effected = []
         while self.queue:
             when, index, source = self.queue [0]
             if source.Future.IsCompleted ():
-                heappop (self.queue) # future has been canceled
+                heappop (self.queue) # future has been cancelled
                 continue
 
             if when > time:
@@ -191,7 +237,7 @@ class Timer (object):
         while self.queue:
             when, index, source = self.queue [0]
             if not source.Future.IsCompleted ():
-                return when # future has been canceled
+                return when # future has been cancelled
 
             heappop (self.queue)
             continue
@@ -200,6 +246,8 @@ class Timer (object):
     # Disposable                                                               #
     #--------------------------------------------------------------------------#
     def Dispose (self, error = None):
+        """Dispose timer and resolve all pending events with specified error
+        """
         error = error or CoreStopped ()
 
         queue, self.queue = self.queue, []
@@ -217,6 +265,8 @@ class Timer (object):
 # File                                                                         #
 #------------------------------------------------------------------------------#
 class File (object):
+    """File awaiter
+    """
     __slots__ = ('fd', 'mask', 'entries', 'core',)
 
     def __init__ (self, fd, core):
@@ -231,6 +281,8 @@ class File (object):
     # Await                                                                    #
     #--------------------------------------------------------------------------#
     def Await (self, mask, cancel = None):
+        """Await event specified by mask argument
+        """
         if mask is None:
             self.Dispose (CoreDisconnectedError ())
             return
@@ -258,6 +310,8 @@ class File (object):
     # Resolve                                                                  #
     #--------------------------------------------------------------------------#
     def Resolve (self, event):
+        """Resolve pending events effected by specified event mask
+        """
         if event & Poller.ERROR:
             error = CoreDisconnectedError () if event & Poller.DISCONNECT else CoreIOError ()
             for source in self.dispatch (self.mask):
@@ -271,6 +325,8 @@ class File (object):
     # Private                                                                  #
     #--------------------------------------------------------------------------#
     def dispatch (self, event):
+        """Pop sources effected by specified event mask
+        """
         entries, effected = [], []
         if not event:
             return effected
@@ -309,6 +365,8 @@ class File (object):
     # Disposable                                                               #
     #--------------------------------------------------------------------------#
     def Dispose (self, error = None):
+        """Dispose file and resolve all pending events with specified error
+        """
         error = error or CoreStopped ()
 
         for source in self.dispatch (self.mask):
