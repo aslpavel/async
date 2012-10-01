@@ -51,6 +51,7 @@ def Async (function):
         return source.Future
 
     generator_async.__name__ = function.__name__
+    generator_async.__doc__  = function.__doc__
     return generator_async
 
 #------------------------------------------------------------------------------#

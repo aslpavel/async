@@ -41,7 +41,7 @@ class Core (object):
     #--------------------------------------------------------------------------#
     @classmethod
     def Instance (cls):
-        """Get global core instance, create if it is None
+        """Get global core instance, creates it if it's None
         """
         with cls.instance_lock:
             if cls.instance is None:
