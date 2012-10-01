@@ -54,6 +54,7 @@ def Coroutine (function):
         return source.Future
 
     coroutine_async.__name__ = function.__name__
+    coroutine_async.__doc__  = function.__doc__
     return coroutine_async
 
 # vim: nu ft=python columns=120 :

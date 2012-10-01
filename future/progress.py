@@ -34,6 +34,7 @@ def ProgressAsync (function):
         return progress
 
     progress_async.__name__ = function.__name__
+    progress_async.__doc__  = function.__doc__
     return progress_async
 
 # vim: nu ft=python columns=120 :

@@ -69,6 +69,7 @@ def DummyAsync (function):
             return FailedFuture (sys.exc_info ())
 
     dummy_async.__name__ = function.__name__
+    dummy_async.__doc__  = function.__doc__
     return dummy_async
 
 # vim: nu ft=python columns=120 :

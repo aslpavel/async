@@ -42,6 +42,7 @@ def LimitAsync (limit):
             return source.Future
 
         async_limit.__name__ = async.__name__
+        async_limit.__doc__  = async.__doc__
         return async_limit
 
     return decorator
