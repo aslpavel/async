@@ -9,6 +9,10 @@ __all__ = ('FutureSource',)
 # Future Source                                                                #
 #------------------------------------------------------------------------------#
 class FutureSource (object):
+    """Future source
+
+    Embeds future object and controls its stated.
+    """
     __slots__ = ('Future', 'result', 'error', 'continuations',)
 
     def __init__ (self):
@@ -22,6 +26,8 @@ class FutureSource (object):
     # Resolve                                                                  #
     #--------------------------------------------------------------------------#
     def Resolve (self, future):
+        """Resolve embedded future object with provider one
+        """
         if future.IsCompleted ():
             error = future.Error ()
             if error is None:
@@ -32,6 +38,8 @@ class FutureSource (object):
             future.Continue (self.Resolve)
 
     def ResultSet (self, result):
+        """Resolve embedded future object with result
+        """
         if self.continuations is None:
             return
 
@@ -41,6 +49,8 @@ class FutureSource (object):
             continuation (self.Future)
 
     def ErrorSet (self, error):
+        """Resolve embedded future object with error
+        """
         if self.continuations is None:
             return
 
@@ -50,6 +60,8 @@ class FutureSource (object):
             continuation (self.Future)
 
     def ErrorRaise (self, exception):
+        """Raise exception inside embedded future object
+        """
         if self.continuations is None:
             return
 
@@ -64,6 +76,7 @@ class FutureSource (object):
 #------------------------------------------------------------------------------#
 # Source Future                                                                #
 #------------------------------------------------------------------------------#
+
 class SourceFuture (Future):
     __slots__ = ('source',)
 
@@ -73,6 +86,7 @@ class SourceFuture (Future):
     #--------------------------------------------------------------------------#
     # Continuation                                                             #
     #--------------------------------------------------------------------------#
+
     def Continue (self, continuation):
         if self.source.continuations is None:
             continuation (self)
@@ -82,6 +96,7 @@ class SourceFuture (Future):
     #--------------------------------------------------------------------------#
     # Result                                                                   #
     #--------------------------------------------------------------------------#
+
     def Result (self):
         if self.source.continuations is not None:
             raise FutureNotReady ()

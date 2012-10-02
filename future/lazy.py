@@ -6,6 +6,11 @@ __all__ = ('LazyFuture',)
 # Lazy Future                                                                  #
 #------------------------------------------------------------------------------#
 class LazyFuture (DelegatedFuture):
+    """Lazy future
+
+    Future object witch is being delegated only created when first of future
+    method is called.
+    """
     __slots__ = ('future', 'factory',)
 
     def __init__ (self, factory):
@@ -13,6 +18,8 @@ class LazyFuture (DelegatedFuture):
         self.factory = factory
 
     def FutureGet (self):
+        """Create delegated future
+        """
         if self.future is None:
             self.future = self.factory ()
         return self.future

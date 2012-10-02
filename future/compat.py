@@ -11,12 +11,15 @@ if sys.version_info [0] > 2:
     del builtins
 
     def Raise (tp, value, tb=None):
+        """Raise exception
+        """
         if value.__traceback__ is not tb:
             raise value.with_traceback (tb)
         raise value
 else:
     def Exec (code, globs=None, locs=None):
-        """Execute code in a namespace."""
+        """Execute code in a namespace.
+        """
         if globs is None:
             frame = sys._getframe (1)
             globs = frame.f_globals

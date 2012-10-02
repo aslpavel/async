@@ -7,7 +7,7 @@ from .future.source import FutureSource
 
 __all__ = ('Async', 'AsyncReturn', 'DummyAsync',)
 #------------------------------------------------------------------------------#
-# Async                                                                        #
+# Asynchronous Function                                                        #
 #------------------------------------------------------------------------------#
 def AsyncReturn (value):
     """Return value inside asynchronous function

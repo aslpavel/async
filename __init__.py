@@ -7,7 +7,6 @@ from .limit  import *
 from .core   import *
 
 __all__ = future.__all__ + async.__all__ + limit.__all__ + core.__all__
-
 #------------------------------------------------------------------------------#
 # Coroutine                                                                    #
 #------------------------------------------------------------------------------#
@@ -22,6 +21,8 @@ except ImportError:
 # Load Test Protocol                                                           #
 #------------------------------------------------------------------------------#
 def load_tests (loader, tests, pattern):
+    """Load test protocol
+    """
     from unittest import TestSuite
     from . import tests
 
