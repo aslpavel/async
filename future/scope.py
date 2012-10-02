@@ -8,6 +8,11 @@ __all__ = ('ScopeFuture',)
 #------------------------------------------------------------------------------#
 class ScopeReturn (BaseException): pass
 class ScopeFuture (DelegatedFuture):
+    """Scope future
+
+    Future is resolved when the last of entered scopes has been left or Return
+    method was called.
+    """
     __slots__ = ('source', 'future', 'depth',)
 
     def __init__ (self):
@@ -18,13 +23,21 @@ class ScopeFuture (DelegatedFuture):
     # Future                                                                   #
     #--------------------------------------------------------------------------#
     def FutureGet (self):
+        """Delegated future interface
+        """
         return self.source.Future
 
     #--------------------------------------------------------------------------#
     # Return                                                                   #
     #--------------------------------------------------------------------------#
-    def Return   (self, resutl = None): return self (result)
+    def Return (self, result = None):
+        """Resolve this future with provided result
+        """
+        return self (result)
+
     def __call__ (self, result = None):
+        """Resolve this future with provided result
+        """
         self.source.ResultSet (result)
         if self.depth > 0:
             raise ScopeReturn ()
@@ -33,6 +46,8 @@ class ScopeFuture (DelegatedFuture):
     # Disposable                                                               #
     #--------------------------------------------------------------------------#
     def Dispose (self):
+        """Resolve this future with None
+        """
         self.source.ResultSet (None)
 
     def __enter__ (self):

@@ -54,7 +54,7 @@ class ManualTimer (object):
             time, uid, source = self.queue [0]
 
             if source.Future.IsCompleted ():
-                heappop (self.queue)
+                heapq.heappop (self.queue)
                 continue
 
             if time > self.time:
