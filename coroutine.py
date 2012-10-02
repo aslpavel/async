@@ -13,6 +13,11 @@ class CoroutineGreenlet (greenlet.greenlet): pass
 # Await                                                                        #
 #------------------------------------------------------------------------------#
 def CoroutineAwait (future):
+    """Await for future to be resolved
+
+    Interrupt current coroutine (if needed) and continue its execute once future
+    object has been resolved. Returns result of the future object.
+    """
     if future.IsCompleted ():
         return future.Result ()
 
@@ -29,6 +34,11 @@ def CoroutineAwait (future):
 # Coroutine                                                                    #
 #------------------------------------------------------------------------------#
 def Coroutine (function):
+    """Coroutine
+
+    Create asynchronous function out of provided function.
+    """
+
     def coroutine_async (*args, **keys):
         coroutine = CoroutineGreenlet (lambda _: function (*args, **keys))
         source    = FutureSource ()
