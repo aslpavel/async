@@ -14,7 +14,12 @@ __all__ = ('LimitTest',)
 #------------------------------------------------------------------------------#
 Count = 1024
 class LimitTest (unittest.TestCase):
+    """LimitAsync unit test
+    """
+
     def test (self):
+        """LimitAsync test
+        """
         # init
         timer = ManualTimer ()
         sleep_limit_10 = LimitAsync (10) (timer.Sleep)
@@ -38,17 +43,23 @@ class LimitTest (unittest.TestCase):
 # Manual Timer                                                                 #
 #------------------------------------------------------------------------------#
 class ManualTimer (object):
+    """Asynchronous timer with manual ticks
+    """
     def __init__ (self):
         self.time  = 0
         self.uid   = itertools.count ()
         self.queue = []
 
     def Sleep (self, time):
+        """Sleep for "time" ticks
+        """
         source = FutureSource ()
         heapq.heappush (self.queue, (self.time + time, next (self.uid), source))
         return source.Future
 
     def Tick (self):
+        """Increase time by one
+        """
         self.time += 1
         while self.queue:
             time, uid, source = self.queue [0]
@@ -65,6 +76,8 @@ class ManualTimer (object):
 
     @property
     def Time (self):
+        """Current time
+        """
         return self.time
 
 # vim: nu ft=python columns=120 :

@@ -10,34 +10,35 @@ __all__ = ('LimitAsync',)
 # Limit Asynchronous Function                                                  #
 #------------------------------------------------------------------------------#
 def LimitAsync (limit):
-    idle = [limit]
+    """Limit asynchronous function factory
+    """
 
-    # decorator
     def decorator (async):
-        queue = deque ()
+        """Limit asynchronous function decorator
+        """
+        worker_count = [0]
+        worker_queue = deque ()
 
-        # worker
         @Async
         def worker ():
-            idle [0] -= 1
+            worker_count [0] += 1
             try:
-                while queue:
-                    source, args, keys = queue.popleft ()
+                while worker_queue:
+                    source, args, keys = worker_queue.popleft ()
                     if not source.Future.IsCompleted ():
                         try:
                             source.ResultSet ((yield async (*args, **keys)))
                         except Exception:
                             source.ErrorSet (sys.exc_info ())
             finally:
-                idle [0] += 1
+                worker_count [0] -= 1
 
-        # limitied version of the async
         def async_limit (*args, **keys):
             source = FutureSource ()
-            queue.append ((source, args, keys))
+            worker_queue.append ((source, args, keys))
 
-            # fire worker
-            if idle [0] > 0: worker ()
+            if worker_count [0] < limit:
+                worker ()
 
             return source.Future
 
