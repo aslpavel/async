@@ -83,7 +83,7 @@ class AsyncSocket (object):
         Reads exactly size bytes.
         """
         return (self.ReadExactlyInto (size, io.BytesIO (), cancel)
-            .ContinueWithFunction (lambda buffer: buffer.getvalue ()))
+            .ContinueWithResult (lambda buffer: buffer.getvalue ()))
 
     @Async
     def ReadExactlyInto (self, size, stream, cancel = None):

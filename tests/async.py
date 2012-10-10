@@ -14,6 +14,7 @@ class AsyncTest (unittest.TestCase):
         s0, s1, s2 = (FutureSource () for i in range (3))
         context = []
         append = context.append
+
         @Async
         def async ():
             append (0)

@@ -2,7 +2,6 @@
 import sys
 import greenlet
 
-from .future.future import SucceededFuture
 from .future.source import FutureSource
 
 __all__ = ('Coroutine', 'CoroutineAwait', 'CoroutineError',)
@@ -43,13 +42,12 @@ def Coroutine (function):
         coroutine = CoroutineGreenlet (lambda _: function (*args, **keys))
         source    = FutureSource ()
 
-        def continuation (future):
+        def continuation (result, error):
             coroutine.parent = greenlet.getcurrent ()
 
             try:
-                error  = future.Error ()
-                future = coroutine.switch (future.Result ()) if error is None else \
-                         coroutine.throw  (*error)
+                future = (coroutine.switch (result) if error is None else
+                          coroutine.throw  (*error))
 
                 if coroutine.dead:
                     source.ResultSet (future)
@@ -60,7 +58,7 @@ def Coroutine (function):
             except Exception:
                 source.ErrorSet (sys.exc_info ())
 
-        continuation (SucceededFuture (None))
+        continuation (None, None)
         return source.Future
 
     coroutine_async.__name__ = function.__name__

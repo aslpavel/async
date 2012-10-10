@@ -31,14 +31,22 @@ def Async (function):
         generator = function (*args, **keys)
         source    = FutureSource ()
 
-        def continuation (future):
+        def continuation (result, error):
+            """Resume generator with provided result, error pair.
+            """
             try:
                 while True:
-                    error  = future.Error ()
-                    future = generator.send  (future.Result ()) if error is None else \
-                             generator.throw (*error)
+                    future = (generator.send  (result) if error is None else
+                              generator.throw (*error))
 
-                    if not future.IsCompleted ():
+                    if future.IsCompleted ():
+                        # avoid recursion
+                        error  = future.Error ()
+                        if error is None:
+                            result = future.Result ()
+                        else:
+                            result = None
+                    else:
                         future.Continue (continuation)
                         return
 
@@ -47,7 +55,7 @@ def Async (function):
             except Exception:
                 source.ErrorSet (sys.exc_info ())
 
-        continuation (SucceededFuture (None))
+        continuation (None, None)
         return source.Future
 
     generator_async.__name__ = function.__name__
@@ -55,7 +63,7 @@ def Async (function):
     return generator_async
 
 #------------------------------------------------------------------------------#
-# Dummy Async                                                                  #
+# Dummy Asynchronous Function                                                  #
 #------------------------------------------------------------------------------#
 def DummyAsync (function):
     """Dummy asynchronous function

@@ -44,27 +44,34 @@ class Future (object):
         """
         return self.Continue (continuation)
 
-    def Continue   (self, continuation):
+    def Continue (self, continuation):
         """Continue with continuation
 
-        Resolved future is passed as only argument of the continuation.
+        Result and Error are passed as arguments of the continuation.
         """
         raise NotImplementedError ()
 
     def ContinueSafe (self, continuation):
         """Continue with continuation
 
-        Resolved future is passed as only argument of the continuation. If
+        Result and Error are passed as arguments of the continuation. If
         continuation raised an error its caught.
         """
-        def continuation_safe (future):
+        def continuation_safe (result, error):
             try:
-                continuation (future)
+                return continuation (result, error)
             except Exception: pass
 
-        self.Continue (continuation_safe)
+        return self.Continue (continuation_safe)
 
-    def __ge__       (self, continuation):
+    def ContinueSelf (self, continuation):
+        """Continue with continuation
+
+        Resolved future is passed as only argument of the continuation.
+        """
+        self.Continue (lambda *_: continuation (self))
+
+    def __ge__ (self, continuation):
         """Same as ContinueWith
         """
         return self.ContinueWith (continuation)
@@ -72,27 +79,29 @@ class Future (object):
     def ContinueWith (self, continuation):
         """Continue with continuation
 
-        Resolved future is passed as only argument of the continuation. Returns
+        Result and Error are passed as arguments of the continuation. Returns
         new future with result of the continuation.
         """
         if self.IsCompleted ():
             try:
-                return SucceededFuture (continuation (self))
+                error = self.Error ()
+                return SucceededFuture (continuation (self.Result (), None)
+                    if error is None else continuation (None, error))
             except Exception:
                 return FailedFuture (sys.exc_info ())
 
         source = FutureSource ()
 
-        def continuation_with (future):
+        def continuation_with (result, error):
             try:
-                source.ResultSet (continuation (future))
+                source.ResultSet (continuation (result, error))
             except Exception:
                 source.ErrorSet (sys.exc_info ())
 
         self.Continue (continuation_with)
         return source.Future
 
-    def ContinueWithFunction (self, func):
+    def ContinueWithResult (self, continuation):
         """Continue with function
 
         Result of resolved future is passed as only argument of the function.
@@ -102,7 +111,7 @@ class Future (object):
             error = self.Error ()
             if error is None:
                 try:
-                    return SucceededFuture (func (self.Result ()))
+                    return SucceededFuture (continuation (self.Result ()))
                 except Exception:
                     return FailedFuture (sys.exc_info ())
             else:
@@ -110,11 +119,10 @@ class Future (object):
 
         source = FutureSource ()
 
-        def continuation_with (future):
-            error = self.Error ()
+        def continuation_with (result, error):
             if error is None:
                 try:
-                    source.ResultSet (func (future.Result ()))
+                    source.ResultSet (continuation (result))
                 except Exception:
                     source.ErrorSet (sys.exc_info ())
             else:
@@ -162,7 +170,7 @@ class Future (object):
         source  = FutureSource ()
 
         for future in futures:
-            future.ContinueSafe (lambda resolved_future: source.ResultSet (resolved_future))
+            future.ContinueSelf (lambda future: source.ResultSet (future))
             if source.Future.IsCompleted ():
                 break
 
@@ -176,11 +184,23 @@ class Future (object):
         successfully completed, otherwise with the same error as the first
         unsuccessful future.
         """
-        def wait_all ():
-            for future in tuple (futures):
-                yield future
+        futures = tuple (futures)
+        source = FutureSource ()
 
-        return Async (wait_all) ()
+        count = [len (futures)]
+        def continuation (result, error):
+            if error is None:
+                if count [0] == 1:
+                    source.ResultSet (None)
+                else:
+                    count [0] -= 1
+            else:
+                source.ErrorSet (error)
+
+        for future in futures:
+            future.Continue (continuation)
+
+        return source.Future
 
     #--------------------------------------------------------------------------#
     # To String                                                                #
@@ -210,9 +230,9 @@ class Future (object):
         """
         file = file or sys.stderr
 
-        def continuation (future):
+        def continuation (result, error):
             try:
-                return future.Result ()
+                return self.Result ()
             except Exception as error:
                 stream = string_type ()
 
@@ -249,11 +269,11 @@ class SucceededFuture (Future):
     # Continuation                                                             #
     #--------------------------------------------------------------------------#
     def Continue (self, continuation):
-        continuation (self)
+        continuation (self.result, None)
 
     def ContinueWith (self, continuation):
         try:
-            return SucceededFuture (continuation (self))
+            return SucceededFuture (continuation (self.result, None))
         except Exception:
             return FailedFuture (sys.exc_info ())
 
@@ -284,7 +304,7 @@ class FailedFuture (Future):
     # Continuation                                                             #
     #--------------------------------------------------------------------------#
     def Continue (self, continuation):
-        continuation (self)
+        continuation (None, self.error)
 
     def ContinueWith (self, continuation):
         return self
@@ -318,6 +338,5 @@ class RaisedFuture (FailedFuture):
 # Dependant Types                                                              #
 #------------------------------------------------------------------------------#
 from .source import FutureSource
-from ..async import Async
 
 # vim: nu ft=python columns=120 :

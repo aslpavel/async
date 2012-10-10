@@ -204,7 +204,7 @@ class Timer (object):
         """
         source = FutureSource ()
         if cancel:
-            cancel.Continue (lambda _: source.ErrorRaise (FutureCanceled ()))
+            cancel.Continue (lambda *_: source.ErrorRaise (FutureCanceled ()))
 
         heappush (self.queue, (when, next (self.index), source))
         return source.Future
@@ -292,7 +292,7 @@ class File (object):
         # source
         source = FutureSource ()
         if cancel:
-            cancel.Continue (lambda _: (self.dispatch (mask), source.ErrorRaise (FutureCanceled ())))
+            cancel.Continue (lambda *_: (self.dispatch (mask), source.ErrorRaise (FutureCanceled ())))
 
         # register
         if self.mask:

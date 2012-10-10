@@ -35,7 +35,8 @@ class FutureSource (object):
             else:
                 self.ErrorSet (future.Error ())
         else:
-            future.Continue (self.Resolve)
+            future.Continue (lambda result, error: self.ErrorSet (error)
+                if error else  self.ResultSEt (result))
 
     def ResultSet (self, result):
         """Resolve embedded future object with result
@@ -46,7 +47,7 @@ class FutureSource (object):
         self.result = result
         continuations, self.continuations = self.continuations, None
         for continuation in continuations:
-            continuation (self.Future)
+            continuation (self.result, self.error)
 
     def ErrorSet (self, error):
         """Resolve embedded future object with error
@@ -57,7 +58,7 @@ class FutureSource (object):
         self.error = error
         continuations, self.continuations = self.continuations, None
         for continuation in continuations:
-            continuation (self.Future)
+            continuation (self.result, self.error)
 
     def ErrorRaise (self, exception):
         """Raise exception inside embedded future object
@@ -71,7 +72,7 @@ class FutureSource (object):
 
         continuations, self.continuations = self.continuations, None
         for continuation in continuations:
-            continuation (self.Future)
+            continuation (self.result, self.error)
 
 #------------------------------------------------------------------------------#
 # Source Future                                                                #
@@ -89,7 +90,7 @@ class SourceFuture (Future):
 
     def Continue (self, continuation):
         if self.source.continuations is None:
-            continuation (self)
+            continuation (self.source.result, self.source.error)
         else:
             self.source.continuations.append (continuation)
 
