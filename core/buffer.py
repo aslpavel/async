@@ -13,7 +13,7 @@ class Buffer (object):
     def __init__ (self, data = None):
         self.offset = 0
         self.chunks = deque ()
-        self.chunks_length = 0
+        self.chunks_size = 0
 
         if data:
             self.Put (data)
@@ -24,48 +24,54 @@ class Buffer (object):
     def Put (self, data):
         """Put data to buffer
         """
-        self.chunks_length += len (data)
+        self.chunks_size += len (data)
         self.chunks.append (data)
 
     def Peek (self, size):
         """Peek "size" bytes for buffer
         """
-        data   = []
-        offset = self.offset
-        for index in range (len (self.chunks)):
-            chunk      = self.chunks [index]
-            chunk_size = len (chunk) - offset
-            if chunk_size < size:
-                data.append (chunk [offset:])
-                size  -= chunk_size
-                offset = 0
-            else:
-                data.append (chunk [offset:offset + size])
-                break
+        data = []
+        data_size = 0
 
-        return b''.join (data)
+        size += self.offset
+        while self.chunks:
+            if data_size >= size:
+                break
+            chunk = self.chunks.popleft ()
+            data.append (chunk)
+            data_size += len (chunk)
+
+        data = b''.join (data)
+        self.chunks.appendleft (data)
+
+        return data [self.offset:size]
 
     def Discard (self, size):
         """Discard "size" bytes from buffer
         """
-        offset = self.offset
-        for index in range (len (self.chunks)):
-            chunk      = self.chunks [0]
-            chunk_size = len (chunk) - offset
-            if chunk_size > size:
-                break
-            size  -= chunk_size
-            offset = 0
-            self.chunks.popleft ()
-            self.chunks_length -= len (chunk)
+        chunk = None
+        chunks_size = 0
 
-        self.offset = offset + size if self.chunks else 0
+        size += self.offset
+        while self.chunks:
+            if chunks_size > size:
+                break
+            chunk = self.chunks.popleft ()
+            chunks_size += len (chunk)
+
+        # re-queue last chunk
+        if chunk and chunks_size > size:
+            chunks_size -= len (chunk)
+            self.chunks.appendleft (chunk)
+
+        self.chunks_size -= chunks_size
+        self.offset = size - chunks_size if self.chunks else 0
 
     def __len__ (self): return self.Length ()
     def Length  (self):
         """Length of the buffer
         """
-        return self.chunks_length - self.offset
+        return self.chunks_size - self.offset
 
     def __bool__ (self):
         """Is buffer not empty?

@@ -5,10 +5,10 @@
 #------------------------------------------------------------------------------#
 def load_tests (loader, tests, pattern):
     from unittest import TestSuite
-    from . import future, source, async, limit, fd
+    from . import future, source, async, limit, fd, buffer
 
     suite = TestSuite ()
-    for test in (future, source, async, limit, fd):
+    for test in (future, source, async, limit, fd, buffer):
         suite.addTests (loader.loadTestsFromModule (test))
 
     return suite
