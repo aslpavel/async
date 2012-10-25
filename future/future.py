@@ -69,7 +69,7 @@ class Future (object):
 
         Resolved future is passed as only argument of the continuation.
         """
-        self.Continue (lambda *_: continuation (self))
+        return self.Continue (lambda *_: continuation (self))
 
     def __ge__ (self, continuation):
         """Same as ContinueWith
@@ -270,6 +270,7 @@ class SucceededFuture (Future):
     #--------------------------------------------------------------------------#
     def Continue (self, continuation):
         continuation (self.result, None)
+        return self
 
     def ContinueWith (self, continuation):
         try:
@@ -305,6 +306,7 @@ class FailedFuture (Future):
     #--------------------------------------------------------------------------#
     def Continue (self, continuation):
         continuation (None, self.error)
+        return self
 
     def ContinueWith (self, continuation):
         return self

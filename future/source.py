@@ -93,6 +93,7 @@ class SourceFuture (Future):
             continuation (self.source.result, self.source.error)
         else:
             self.source.continuations.append (continuation)
+        return self
 
     #--------------------------------------------------------------------------#
     # Result                                                                   #
