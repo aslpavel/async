@@ -49,23 +49,33 @@ class Buffer (object):
     def Discard (self, size):
         """Discard "size" bytes from buffer
         """
+        if not self.chunks:
+            return
+
         chunk = None
         chunks_size = 0
 
-        size += self.offset
+        # discard whole chunks
+        size = min (size + self.offset, self.chunks_size)
         while self.chunks:
             if chunks_size > size:
                 break
             chunk = self.chunks.popleft ()
             chunks_size += len (chunk)
-
-        # re-queue last chunk
-        if chunk and chunks_size > size:
-            chunks_size -= len (chunk)
-            self.chunks.appendleft (chunk)
-
         self.chunks_size -= chunks_size
-        self.offset = size - chunks_size if self.chunks else 0
+
+        # cut chunk if needed
+        offset = len (chunk) - (chunks_size - size)
+        if offset > len (chunk) / 2:
+            self.offset = 0
+            chunk = chunk [offset:]
+        else:
+            self.offset = offset
+
+        # re-queue chunk
+        if chunk:
+            self.chunks.appendleft (chunk)
+            self.chunks_size += len (chunk)
 
     def __len__ (self): return self.Length ()
     def Length  (self):
