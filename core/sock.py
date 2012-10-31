@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import io
 import errno
 import socket
 
@@ -23,6 +22,9 @@ class AsyncSocket (object):
         self.fd = sock.fileno ()
         self.core = core or Core.Instance ()
         self.buffer_size = buffer_size or self.default_buffer_size
+
+        # read
+        self.read_buffer = Buffer ()
 
         # flush
         self.flusher = SucceededFuture (None)
@@ -60,58 +62,51 @@ class AsyncSocket (object):
 
         Reads at most size bytes.
         """
-        while True:
-            try:
-                data = self.sock.recv (size)
-                if not data:
-                    raise CoreDisconnectedError ()
-                AsyncReturn (data)
+        if not size:
+            AsyncReturn (b'')
 
-            except socket.error as error:
-                if error.errno != errno.EAGAIN:
-                    if error.errno == errno.EPIPE:
-                        raise CoreDisconnectedError ()
-                    raise
+        buffer = self.read_buffer
+        while not buffer:
+            yield self.read (buffer)
 
-            try:
-                yield self.core.Poll (self.fd, self.core.READ, cancel)
-            except CoreDisconnectedError: pass
+        data = buffer.Peek (size)
+        buffer.Discard (size)
+        AsyncReturn (data)
 
+    @Async
     def ReadExactly (self, size, cancel = None):
         """Read asynchronously from socket
 
         Reads exactly size bytes.
         """
-        return (self.ReadExactlyInto (size, io.BytesIO (), cancel)
-            .ContinueWithResult (lambda buffer: buffer.getvalue ()))
+        if not size:
+            AsyncReturn (b'')
+
+        buffer = self.read_buffer
+        while len (buffer) < size:
+            yield self.read (buffer)
+
+        data = buffer.Peek (size)
+        buffer.Discard (size)
+        AsyncReturn (data)
 
     @Async
-    def ReadExactlyInto (self, size, stream, cancel = None):
-        """Read asynchronously from socket
-
-        Reads exactly size bytes, and puts them into provide stream.
+    def read (self, buffer):
+        """Read some data into buffer asynchronously
         """
-        left = size
-        while left:
-            try:
-                data = self.sock.recv (left)
-                if not data:
+        try:
+            data = self.sock.recv (self.buffer_size)
+            if not data:
+                raise CoreDisconnectedError ()
+            buffer.Put (data)
+
+        except socket.error as error:
+            if error.errno == errno.EAGAIN:
+                yield self.core.Poll (self.fd, self.core.READ)
+            else:
+                if error.errno == errno.EPIPE:
                     raise CoreDisconnectedError ()
-                stream.write (data)
-                left -= len (data)
-                continue
-
-            except socket.error as error:
-                if error.errno != errno.EAGAIN:
-                    if error.errno == errno.EPIPE:
-                        raise CoreDisconnectedError ()
-                    raise
-
-            try:
-                yield self.core.Poll (self.fd, self.core.READ, cancel)
-            except CoreDisconnectedError: pass
-
-        AsyncReturn (stream)
+                raise
 
     #--------------------------------------------------------------------------#
     # Writing                                                                  #

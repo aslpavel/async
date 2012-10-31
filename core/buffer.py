@@ -66,7 +66,7 @@ class Buffer (object):
 
         # cut chunk if needed
         offset = len (chunk) - (chunks_size - size)
-        if offset > len (chunk) / 2:
+        if offset << 1 > len (chunk):
             self.offset = 0
             chunk = chunk [offset:]
         else:

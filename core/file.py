@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import io
 import os
 import errno
 
@@ -20,12 +19,12 @@ class AsyncFile (object):
 
     def __init__ (self, fd, buffer_size = None, closefd = None, core = None):
         self.fd = fd
+        self.closefd = closefd is None or closefd
         self.buffer_size = buffer_size or self.default_buffer_size
         self.core = core or Core.Instance ()
 
         # read
-        self.read_buffer = io.open (fd, 'rb', buffering = self.buffer_size,
-            closefd = True if closefd is None else closefd)
+        self.read_buffer = Buffer ()
 
         # flush
         self.flusher = SucceededFuture (None)
@@ -55,48 +54,53 @@ class AsyncFile (object):
     def Read (self, size, cancel = None):
         """Read asynchronously from file
 
-        Reads at most size bytes.
+        Reads at most size and at least one byte(s).
         """
-        buffer = self.read_buffer
-        while True:
-            data = b'' if buffer.closed else buffer.read (size)
-            if data is None:
-                try:
-                    yield self.core.Poll (self.fd, self.core.READ, cancel)
-                except CoreDisconnectedError: pass
-            elif data:
-                AsyncReturn (data)
-            else:
-                raise CoreDisconnectedError ()
+        if not size:
+            AsyncReturn (b'')
 
+        buffer = self.read_buffer
+        while not buffer:
+            yield self.read (buffer)
+
+        data = buffer.Peek (size)
+        buffer.Discard (size)
+        AsyncReturn (data)
+
+    @Async
     def ReadExactly (self, size, cancel = None):
         """Read asynchronously from file
 
         Reads exactly size bytes.
         """
-        return (self.ReadExactlyInto (size, io.BytesIO (), cancel)
-            .ContinueWithResult (lambda buffer: buffer.getvalue ()))
+        if not size:
+            AsyncReturn (b'')
+
+        buffer = self.read_buffer
+        while len (buffer) < size:
+            yield self.read (buffer)
+
+        data = buffer.Peek (size)
+        buffer.Discard (size)
+        AsyncReturn (data)
 
     @Async
-    def ReadExactlyInto (self, size, stream, cancel = None):
-        """Read asynchronously from file
-
-        Reads exactly size bytes, and puts them into provide stream.
+    def read (self, buffer):
+        """Read some data into buffer asynchronously
         """
-        left   = size
-        buffer = self.read_buffer
-        while left:
-            data = b'' if buffer.closed else buffer.read (left)
-            if data is None:
-                try:
-                    yield self.core.Poll (self.fd, self.core.READ, cancel)
-                except CoreDisconnectedError: pass
-            elif data:
-                stream.write (data)
-                left -= len (data)
-            else:
+        try:
+            data = os.read (self.fd, self.buffer_size)
+            if not data:
                 raise CoreDisconnectedError ()
-        AsyncReturn (stream)
+            buffer.Put (data)
+
+        except OSError as error:
+            if error.errno == errno.EAGAIN:
+                yield self.core.Poll (self.fd, self.core.READ)
+            else:
+                if errno.errno == errno.EPIPE:
+                    raise CoreDisconnectedError ()
+                raise
 
     #--------------------------------------------------------------------------#
     # Writing                                                                  #
@@ -162,7 +166,9 @@ class AsyncFile (object):
             yield self.Flush ()
         finally:
             self.core.Poll (self.fd, None) # resolve with CoreDisconnectedError
-            self.read_buffer.close ()
+            if self.closefd:
+                os.close (self.fd)
+            #self.read_buffer.close ()
 
     def __enter__ (self):
         return self
