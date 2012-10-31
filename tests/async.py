@@ -5,11 +5,11 @@ import unittest
 from ..future import FutureSource
 from ..async  import Async, AsyncReturn
 
-__all__ = ('AsyncTest',)
+__all__ = ('AsyncTests',)
 #------------------------------------------------------------------------------#
-# Async Test                                                                   #
+# Asynchronous Tests                                                           #
 #------------------------------------------------------------------------------#
-class AsyncTest (unittest.TestCase):
+class AsyncTests (unittest.TestCase):
     def test_normal (self):
         s0, s1, s2 = (FutureSource () for i in range (3))
         context = []

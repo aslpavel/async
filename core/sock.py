@@ -66,7 +66,7 @@ class AsyncSocket (object):
             AsyncReturn (b'')
 
         buffer = self.read_buffer
-        while not buffer:
+        if not buffer:
             yield self.read (buffer)
 
         data = buffer.Peek (size)
@@ -94,19 +94,21 @@ class AsyncSocket (object):
     def read (self, buffer):
         """Read some data into buffer asynchronously
         """
-        try:
-            data = self.sock.recv (self.buffer_size)
-            if not data:
-                raise CoreDisconnectedError ()
-            buffer.Put (data)
-
-        except socket.error as error:
-            if error.errno == errno.EAGAIN:
-                yield self.core.Poll (self.fd, self.core.READ)
-            else:
-                if error.errno == errno.EPIPE:
+        while True:
+            try:
+                data = self.sock.recv (self.buffer_size)
+                if not data:
                     raise CoreDisconnectedError ()
-                raise
+                buffer.Put (data)
+                break
+
+            except socket.error as error:
+                if error.errno != errno.EAGAIN:
+                    if error.errno == errno.EPIPE:
+                        raise CoreDisconnectedError ()
+                    raise
+
+            yield self.core.Poll (self.fd, self.core.READ)
 
     #--------------------------------------------------------------------------#
     # Writing                                                                  #

@@ -60,7 +60,7 @@ class AsyncFile (object):
             AsyncReturn (b'')
 
         buffer = self.read_buffer
-        while not buffer:
+        if not buffer:
             yield self.read (buffer)
 
         data = buffer.Peek (size)
@@ -88,19 +88,21 @@ class AsyncFile (object):
     def read (self, buffer):
         """Read some data into buffer asynchronously
         """
-        try:
-            data = os.read (self.fd, self.buffer_size)
-            if not data:
-                raise CoreDisconnectedError ()
-            buffer.Put (data)
-
-        except OSError as error:
-            if error.errno == errno.EAGAIN:
-                yield self.core.Poll (self.fd, self.core.READ)
-            else:
-                if errno.errno == errno.EPIPE:
+        while True:
+            try:
+                data = os.read (self.fd, self.buffer_size)
+                if not data:
                     raise CoreDisconnectedError ()
-                raise
+                buffer.Put (data)
+                break
+
+            except OSError as error:
+                if error.errno != errno.EAGAIN:
+                    if errno.errno == errno.EPIPE:
+                        raise CoreDisconnectedError ()
+                    raise
+
+            yield self.core.Poll (self.fd, self.core.READ)
 
     #--------------------------------------------------------------------------#
     # Writing                                                                  #
