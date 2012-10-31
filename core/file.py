@@ -132,13 +132,15 @@ class AsyncFile (object):
         while buffer:
             try:
                 buffer.Discard (os.write (self.fd, buffer.Peek (self.buffer_size)))
+                continue
+
             except OSError as error:
-                if error.errno == errno.EAGAIN:
-                    yield self.core.Poll (self.fd, self.core.WRITE)
-                else:
+                if error.errno != errno.EAGAIN:
                     if error.errno == errno.EPIPE:
                         raise CoreDisconnectedError ()
                     raise
+
+            yield self.core.Poll (self.fd, self.core.WRITE)
 
     #--------------------------------------------------------------------------#
     # Options                                                                  #

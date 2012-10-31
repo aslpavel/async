@@ -138,13 +138,15 @@ class AsyncSocket (object):
         while buffer:
             try:
                 buffer.Discard (self.sock.send (buffer.Peek (self.buffer_size)))
+                continue
+
             except socket.error as error:
-                if error.errno == errno.EAGAIN:
-                    yield self.core.Poll (self.fd, self.core.WRITE)
-                else:
+                if error.errno != errno.EAGAIN:
                     if error.errno == errno.EPIPE:
                         raise CoreDisconnectedError ()
                     raise
+
+            yield self.core.Poll (self.fd, self.core.WRITE)
 
     #--------------------------------------------------------------------------#
     # Connect                                                                  #
