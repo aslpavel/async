@@ -6,7 +6,7 @@ from .fd import FileCloseOnExec
 
 __all__ = ('Poller', 'EPollPoller', 'KQueuePoller', 'SelectPoller',)
 #------------------------------------------------------------------------------#
-# EPoll Consants                                                               #
+# EPoll Constants                                                              #
 #------------------------------------------------------------------------------#
 EPOLLIN      = 0x001
 EPOLLPRI     = 0x002

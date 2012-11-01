@@ -1,21 +1,25 @@
 # -*- coding: utf-8 -*-
-import sys
+import errno
 import threading
 import itertools
-from time  import time
+from time import time
 from heapq import heappush, heappop
 
-from .poller  import Poller
+from .poller import Poller
+from .error import ConnectionError, BrokenPipeError
 from ..future import FutureSource, FutureCanceled, RaisedFuture
 
-__all__ = ('Core', 'CoreError', 'CoreStopped', 'CoreIOError', 'CoreDisconnectedError',)
+__all__ = ('Core', 'CoreError', 'CoreStopped',)
 #------------------------------------------------------------------------------#
 # Errors                                                                       #
 #------------------------------------------------------------------------------#
-class CoreError (Exception): pass
-class CoreStopped (CoreError): pass
-class CoreIOError (CoreError): pass
-class CoreDisconnectedError (CoreIOError): pass
+class CoreError (Exception):
+    """In core error
+    """
+
+class CoreStopped (CoreError):
+    """Core has been stopped
+    """
 
 #------------------------------------------------------------------------------#
 # Core                                                                         #
@@ -72,7 +76,7 @@ class Core (object):
         """Resolved when specified unix time is reached
 
         Result of the future is scheduled time or FutureCanceled if it was
-        cancelled.
+        canceled.
         """
         return self.timer.Await (resume, cancel)
 
@@ -82,7 +86,7 @@ class Core (object):
     def Idle (self, cancel = None):
         """Resolved when new iteration loop is started.
 
-        Result of the future is None of FutureCanceled if it was cancelled.
+        Result of the future is None of FutureCanceled if it was canceled.
         """
         return self.SleepUntil (0, cancel)
 
@@ -99,8 +103,8 @@ class Core (object):
         """Poll file descriptor
 
         Poll file descriptor for events specified by mask. If mask is None then
-        specified descriptor is unregistred and all pending events are resolved
-        with CoreDisconnectedError, otherwise future is resolved with bitmap of
+        specified descriptor is unregistered and all pending events are resolved
+        with BrokenPipeError, otherwise future is resolved with bitmap of
         the events happened of file descriptor or error if any.
         """
         file = self.files.get (fd)
@@ -284,7 +288,7 @@ class File (object):
         """Await event specified by mask argument
         """
         if mask is None:
-            self.Dispose (CoreDisconnectedError ())
+            self.Dispose (BrokenPipeError (errno.EPIPE, 'Detached from core'))
             return
         elif mask & self.mask:
             return RaisedFuture (CoreError ('File is already being awaited: {}'.format (mask)))
@@ -317,7 +321,8 @@ class File (object):
                 source.ResultSet (event)
 
         else:
-            error = CoreDisconnectedError () if event & Poller.DISCONNECT else CoreIOError ()
+            error = BrokenPipeError (errno.EPIPE, 'Broken pipe') if event & Poller.DISCONNECT else \
+                    ConnectionError ()
             for source in self.dispatch (self.mask):
                 source.ErrorRaise (error)
 

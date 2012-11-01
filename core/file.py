@@ -2,11 +2,12 @@
 import os
 import errno
 
-from .fd      import FileCloseOnExec, FileBlocking
-from .core    import Core, CoreDisconnectedError
-from .buffer  import Buffer
+from .fd import FileCloseOnExec, FileBlocking
+from .core import Core
+from .buffer import Buffer
+from .error import BrokenPipeError, BlockingErrorSet, PipeErrorSet
 from ..future import SucceededFuture
-from ..async  import Async, AsyncReturn
+from ..async import Async, AsyncReturn
 
 __all__ = ('AsyncFile',)
 #------------------------------------------------------------------------------#
@@ -92,14 +93,14 @@ class AsyncFile (object):
             try:
                 data = os.read (self.fd, self.buffer_size)
                 if not data:
-                    raise CoreDisconnectedError ()
+                    raise BrokenPipeError (errno.EPIPE, 'Broken pipe')
                 buffer.Put (data)
                 break
 
             except OSError as error:
-                if error.errno != errno.EAGAIN:
-                    if errno.errno == errno.EPIPE:
-                        raise CoreDisconnectedError ()
+                if error.errno not in BlockingErrorSet:
+                    if error.errno in PipeErrorSet:
+                        raise BrokenPipeError (error.errno, error.strerror)
                     raise
 
             yield self.core.Poll (self.fd, self.core.READ)
@@ -135,9 +136,9 @@ class AsyncFile (object):
                 continue
 
             except OSError as error:
-                if error.errno != errno.EAGAIN:
-                    if error.errno == errno.EPIPE:
-                        raise CoreDisconnectedError ()
+                if error.errno not in BlockingErrorSet:
+                    if error.errno in PipeErrorSet:
+                        raise BrokenPipeError (error.errno, error.strerror)
                     raise
 
             yield self.core.Poll (self.fd, self.core.WRITE)
@@ -169,7 +170,7 @@ class AsyncFile (object):
         try:
             yield self.Flush ()
         finally:
-            self.core.Poll (self.fd, None) # resolve with CoreDisconnectedError
+            self.core.Poll (self.fd, None) # resolve with BrokenPipeError
             if self.closefd:
                 os.close (self.fd)
             #self.read_buffer.close ()

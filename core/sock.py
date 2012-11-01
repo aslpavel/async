@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
-import errno
 import socket
+import errno
 
-from .fd      import FileCloseOnExec, FileBlocking
-from .core    import Core, CoreDisconnectedError
-from .buffer  import Buffer
-from ..async  import Async, AsyncReturn
+from .fd import FileCloseOnExec, FileBlocking
+from .core import Core
+from .buffer import Buffer
+from .error import BrokenPipeError, BlockingErrorSet, PipeErrorSet
+from ..async import Async, AsyncReturn
 from ..future import SucceededFuture
 
 __all__ = ('AsyncSocket',)
@@ -98,14 +99,14 @@ class AsyncSocket (object):
             try:
                 data = self.sock.recv (self.buffer_size)
                 if not data:
-                    raise CoreDisconnectedError ()
+                    raise BrokenPipeError (errno.EPIPE, 'Broken pipe')
                 buffer.Put (data)
                 break
 
             except socket.error as error:
-                if error.errno != errno.EAGAIN:
-                    if error.errno == errno.EPIPE:
-                        raise CoreDisconnectedError ()
+                if error.errno not in BlockingErrorSet:
+                    if error.errno in PipeErrorSet:
+                        raise BrokenPipeError (error.errno, error.strerror)
                     raise
 
             yield self.core.Poll (self.fd, self.core.READ)
@@ -141,9 +142,9 @@ class AsyncSocket (object):
                 continue
 
             except socket.error as error:
-                if error.errno != errno.EAGAIN:
-                    if error.errno == errno.EPIPE:
-                        raise CoreDisconnectedError ()
+                if error.errno not in BlockingErrorSet:
+                    if error.errno in PipeErrorSet:
+                        raise BrokenPipeError (error.errno, error.strerror)
                     raise
 
             yield self.core.Poll (self.fd, self.core.WRITE)
@@ -158,7 +159,7 @@ class AsyncSocket (object):
         try:
             self.sock.connect (address)
         except socket.error as error:
-            if error.errno not in (errno.EINPROGRESS, errno.EWOULDBLOCK):
+            if error.errno not in BlockingErrorSet:
                 raise
         yield self.core.Poll (self.fd, self.core.WRITE, cancel)
         AsyncReturn (self)
@@ -224,7 +225,7 @@ class AsyncSocket (object):
         try:
             yield self.Flush ()
         finally:
-            self.core.Poll (self.fd, None) # resolve with CoreDisconnectedError
+            self.core.Poll (self.fd, None) # resolve with BrokenPipeError
             self.sock.close ()
 
     def __enter__ (self):
