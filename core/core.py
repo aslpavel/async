@@ -312,14 +312,14 @@ class File (object):
     def Resolve (self, event):
         """Resolve pending events effected by specified event mask
         """
-        if event & Poller.ERROR:
+        if event & ~Poller.ERROR:
+            for source in self.dispatch (event):
+                source.ResultSet (event)
+
+        else:
             error = CoreDisconnectedError () if event & Poller.DISCONNECT else CoreIOError ()
             for source in self.dispatch (self.mask):
                 source.ErrorRaise (error)
-
-        else:
-            for source in self.dispatch (event):
-                source.ResultSet (event)
 
     #--------------------------------------------------------------------------#
     # Private                                                                  #
