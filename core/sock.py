@@ -156,13 +156,16 @@ class AsyncSocket (object):
     def Connect (self, address, cancel = None):
         """Connect asynchronously to the socket
         """
-        try:
-            self.sock.connect (address)
-        except socket.error as error:
-            if error.errno not in BlockingErrorSet:
-                raise
-        yield self.core.Poll (self.fd, self.core.WRITE, cancel)
-        AsyncReturn (self)
+        while True:
+            try:
+                self.sock.connect (address)
+                AsyncReturn (self)
+
+            except socket.error as error:
+                if error.errno not in BlockingErrorSet:
+                    raise
+
+            yield self.core.Poll (self.fd, self.core.WRITE, cancel)
 
     #--------------------------------------------------------------------------#
     # Bind                                                                     #
@@ -187,16 +190,16 @@ class AsyncSocket (object):
     def Accept (self, cancel = None):
         """Asynchronously accept connection to the socket
         """
-        try:
-            client, addr = self.sock.accept ()
-            AsyncReturn ((AsyncSocket (client, core = self.core), addr))
-        except socket.error as error:
-            if error.errno != errno.EAGAIN:
-                raise
+        while True:
+            try:
+                client, addr = self.sock.accept ()
+                AsyncReturn ((AsyncSocket (client, core = self.core), addr))
 
-        yield self.core.Poll (self.fd, self.core.READ, cancel)
-        client, addr = self.sock.accept ()
-        AsyncReturn ((AsyncSocket (client, core = self.core), addr))
+            except socket.error as error:
+                if error.errno not in BlockingErrorSet:
+                    raise
+
+            yield self.core.Poll (self.fd, self.core.READ, cancel)
 
     #--------------------------------------------------------------------------#
     # Options                                                                  #
