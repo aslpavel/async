@@ -2,8 +2,6 @@
 import errno
 import select
 
-from .fd import FileCloseOnExec
-
 __all__ = ('Poller', 'EPollPoller', 'KQueuePoller', 'SelectPoller',)
 #------------------------------------------------------------------------------#
 # EPoll Constants                                                              #
@@ -95,7 +93,9 @@ class EPollPoller (Poller):
         self.fds   = set ()
 
         self.epoll = select.epoll ()
-        FileCloseOnExec (self.epoll.fileno (), True)
+
+        from .file import CloseOnExecFD
+        CloseOnExecFD (self.epoll.fileno (), True)
 
     #--------------------------------------------------------------------------#
     # Poller Interface                                                         #

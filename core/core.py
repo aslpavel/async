@@ -291,7 +291,7 @@ class File (object):
             self.Dispose (BrokenPipeError (errno.EPIPE, 'Detached from core'))
             return
         elif mask & self.mask:
-            return RaisedFuture (CoreError ('File is already being awaited: {}'.format (mask)))
+            return RaisedFuture (CoreError ('File is already being awaited: fd={}'.format (mask)))
 
         # source
         source = FutureSource ()

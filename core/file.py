@@ -1,35 +1,27 @@
 # -*- coding: utf-8 -*-
 import os
 import errno
+import fcntl
 
-from .fd import FileCloseOnExec, FileBlocking
 from .core import Core
-from .buffer import Buffer
+from .stream import AsyncStream
 from .error import BrokenPipeError, BlockingErrorSet, PipeErrorSet
-from ..future import SucceededFuture
 from ..async import Async, AsyncReturn
 
-__all__ = ('AsyncFile',)
+__all__ = ('AsyncFile', 'BlockingFD', 'CloseOnExecFD',)
 #------------------------------------------------------------------------------#
 # Asynchronous File                                                            #
 #------------------------------------------------------------------------------#
-class AsyncFile (object):
+class AsyncFile (AsyncStream):
     """Asynchronous File
     """
-    default_buffer_size = 1 << 16
 
     def __init__ (self, fd, buffer_size = None, closefd = None, core = None):
+        AsyncStream.__init__ (self, buffer_size)
+
         self.fd = fd
-        self.closefd = closefd is None or closefd
-        self.buffer_size = buffer_size or self.default_buffer_size
         self.core = core or Core.Instance ()
-
-        # read
-        self.read_buffer = Buffer ()
-
-        # flush
-        self.flusher = SucceededFuture (None)
-        self.flusher_buffer = Buffer ()
+        self.closefd = closefd is None or closefd
 
         self.Blocking (False)
 
@@ -49,53 +41,18 @@ class AsyncFile (object):
         return self.fd
 
     #--------------------------------------------------------------------------#
-    # Reading                                                                  #
+    # Read                                                                     #
     #--------------------------------------------------------------------------#
     @Async
-    def Read (self, size, cancel = None):
-        """Read asynchronously from file
-
-        Reads at most size and at least one byte(s).
-        """
-        if not size:
-            AsyncReturn (b'')
-
-        buffer = self.read_buffer
-        if not buffer:
-            yield self.read (buffer)
-
-        data = buffer.Peek (size)
-        buffer.Discard (size)
-        AsyncReturn (data)
-
-    @Async
-    def ReadExactly (self, size, cancel = None):
-        """Read asynchronously from file
-
-        Reads exactly size bytes.
-        """
-        if not size:
-            AsyncReturn (b'')
-
-        buffer = self.read_buffer
-        while len (buffer) < size:
-            yield self.read (buffer)
-
-        data = buffer.Peek (size)
-        buffer.Discard (size)
-        AsyncReturn (data)
-
-    @Async
-    def read (self, buffer):
-        """Read some data into buffer asynchronously
+    def ReadRaw (self, buffer):
+        """Unbuffered asynchronous read
         """
         while True:
             try:
                 data = os.read (self.fd, self.buffer_size)
                 if not data:
                     raise BrokenPipeError (errno.EPIPE, 'Broken pipe')
-                buffer.Put (data)
-                break
+                AsyncReturn (data)
 
             except OSError as error:
                 if error.errno not in BlockingErrorSet:
@@ -106,34 +63,15 @@ class AsyncFile (object):
             yield self.core.Poll (self.fd, self.core.READ)
 
     #--------------------------------------------------------------------------#
-    # Writing                                                                  #
+    # Write                                                                    #
     #--------------------------------------------------------------------------#
-    def Write (self, data):
-        """Write to file without blocking
-        """
-        self.flusher_buffer.Put (data)
-        if self.flusher_buffer.Length () >= self.buffer_size:
-            self.Flush ()
-
-    #--------------------------------------------------------------------------#
-    # Flush                                                                    #
-    #--------------------------------------------------------------------------#
-    def Flush (self):
-        """Flush queued writes asynchronously
-        """
-        if self.flusher.IsCompleted () and self.flusher_buffer:
-            self.flusher = self.flusher_main ()
-        return self.flusher
-
     @Async
-    def flusher_main (self):
-        """Flush coroutine
+    def WriteRaw (self, data):
+        """Unbuffered asynchronous write
         """
-        buffer = self.flusher_buffer
-        while buffer:
+        while True:
             try:
-                buffer.Discard (os.write (self.fd, buffer.Peek (self.buffer_size)))
-                continue
+                AsyncReturn (os.write (self.fd, data))
 
             except OSError as error:
                 if error.errno not in BlockingErrorSet:
@@ -144,42 +82,64 @@ class AsyncFile (object):
             yield self.core.Poll (self.fd, self.core.WRITE)
 
     #--------------------------------------------------------------------------#
+    # Dispose                                                                  #
+    #--------------------------------------------------------------------------#
+    def DisposeRaw (self):
+        """Dispose file
+        """
+        self.core.Poll (self.fd, None) # resolve with BrokenPipeError
+        if self.closefd:
+            os.close (self.fd)
+
+    #--------------------------------------------------------------------------#
     # Options                                                                  #
     #--------------------------------------------------------------------------#
     def Blocking (self, enable = None):
-        """Set file "blocking" value
+        """Set or get "blocking" value
 
         If enable is not set, returns current "blocking" value.
         """
-        return FileBlocking (self.fd, enable)
+        return BlockingFD (self.fd, enable)
 
     def CloseOnExec (self, enable = None):
-        """Set file "close on exec" value
+        """Set or get "close on exec" value
 
         If enable is not set, returns current "close on exec" value.
         """
-        return FileCloseOnExec (self.fd, enable)
+        return CloseOnExecFD (self.fd, enable)
 
-    #--------------------------------------------------------------------------#
-    # Dispose                                                                  #
-    #--------------------------------------------------------------------------#
-    @Async
-    def Dispose (self):
-        """Dispose file
-        """
-        try:
-            yield self.Flush ()
-        finally:
-            self.core.Poll (self.fd, None) # resolve with BrokenPipeError
-            if self.closefd:
-                os.close (self.fd)
-            #self.read_buffer.close ()
+#------------------------------------------------------------------------------#
+# File Options                                                                 #
+#------------------------------------------------------------------------------#
+def BlockingFD (fd, enable = None):
+    """Set or get file "blocking"
 
-    def __enter__ (self):
-        return self
+    If enable is not set, returns current "blocking" value.
+    """
+    return not option_fd (fd, fcntl.F_GETFL, fcntl.F_SETFL, os.O_NONBLOCK,
+        None if enable is None else not enable)
 
-    def __exit__ (self, et, eo, tb):
-        self.Dispose ()
-        return False
+def CloseOnExecFD (fd, enable = None):
+    """Set or get file "close on exec" option
+
+    If enable is not set, returns current "close on exec" value.
+    """
+    return option_fd (fd, fcntl.F_GETFD, fcntl.F_SETFD, fcntl.FD_CLOEXEC, enable)
+
+def option_fd (fd, get_flag, set_flag, option_flag, enable = None):
+    """Set or get file option
+    """
+    options = fcntl.fcntl (fd, get_flag)
+    if enable is None:
+        return bool (options & option_flag)
+
+    elif enable:
+        options |= option_flag
+
+    else:
+        options &= ~option_flag
+
+    fcntl.fcntl (fd, set_flag, options)
+    return enable
 
 # vim: nu ft=python columns=120 :

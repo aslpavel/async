@@ -6,7 +6,7 @@ C# like Async/Await paradigm for asynchronous programming in Python
 
 ```python
 import socket
-from async import Async, AsyncSocket, Core
+from async import Async, AsyncSocket, Core, BrokenPipeError
 
 def main ():
     with Core.Instance () as core:
@@ -16,8 +16,10 @@ def main ():
 
         @Async
         def process (sock, addr):
-            while True:
-                yield sock.Write ((yield sock.Read (1 << 20)))
+            try:
+                while True:
+                    yield sock.Write ((yield sock.Read (1 << 20)))
+            except BrokenPipeError: pass
 
         @Async
         def server ():

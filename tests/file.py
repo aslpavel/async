@@ -2,7 +2,7 @@
 import os
 import unittest
 
-from ..core.fd import FileBlocking, FileCloseOnExec
+from ..core.file import BlockingFD, CloseOnExecFD
 
 __all__ = ('FileOptionsTest',)
 #------------------------------------------------------------------------------#
@@ -10,10 +10,10 @@ __all__ = ('FileOptionsTest',)
 #------------------------------------------------------------------------------#
 class FileOptionsTest (unittest.TestCase):
     def testBlocking (self):
-        self.setterTest (FileBlocking)
+        self.setterTest (BlockingFD)
 
     def testCloseOnExec (self):
-        self.setterTest (FileCloseOnExec)
+        self.setterTest (CloseOnExecFD)
 
     def setterTest (self, setter):
         try:
