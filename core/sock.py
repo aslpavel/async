@@ -32,13 +32,13 @@ class AsyncSocket (AsyncFile):
     # Read                                                                     #
     #--------------------------------------------------------------------------#
     @Async
-    def ReadRaw (self, size):
+    def ReadRaw (self, size, cancel = None):
         """Unbuffered asynchronous read
         """
         while True:
             try:
-                data = self.sock.recv (self.buffer_size)
-                if not data:
+                data = self.sock.recv (size)
+                if size and not data:
                     raise BrokenPipeError (errno.EPIPE, 'Broken pipe')
                 AsyncReturn (data)
 
@@ -48,13 +48,13 @@ class AsyncSocket (AsyncFile):
                         raise BrokenPipeError (error.errno, error.strerror)
                     raise
 
-            yield self.core.Poll (self.fd, self.core.READ)
+            yield self.core.Poll (self.fd, self.core.READ, cancel)
 
     #--------------------------------------------------------------------------#
     # Write                                                                    #
     #--------------------------------------------------------------------------#
     @Async
-    def WriteRaw (self, data):
+    def WriteRaw (self, data, cancel = None):
         """Unbuffered asynchronous write
         """
         while True:
@@ -67,7 +67,7 @@ class AsyncSocket (AsyncFile):
                         raise BrokenPipeError (error.errno, error.strerror)
                     raise
 
-            yield self.core.Poll (self.fd, self.core.WRITE)
+            yield self.core.Poll (self.fd, self.core.WRITE, cancel)
 
     #--------------------------------------------------------------------------#
     # Connect                                                                  #

@@ -8,7 +8,7 @@ __all__ = ('Buffer',)
 class Buffer (object):
     """Data buffer
 
-    Used by asynchronous writer.
+    Used by asynchronous stream.
     """
     def __init__ (self, data = None):
         self.offset = 0
@@ -24,8 +24,9 @@ class Buffer (object):
     def Put (self, data):
         """Put data to buffer
         """
-        self.chunks_size += len (data)
-        self.chunks.append (data)
+        if data:
+            self.chunks.append (data)
+            self.chunks_size += len (data)
 
     def Peek (self, size):
         """Peek "size" bytes for buffer
@@ -46,16 +47,20 @@ class Buffer (object):
 
         return data [self.offset:size]
 
-    def Discard (self, size):
+    def Discard (self, size = None):
         """Discard "size" bytes from buffer
         """
+        if size is None:
+            self.offset = 0
+            self.chunks_size = 0
+            self.chunks.clear ()
+            return
+
         if not self.chunks:
             return
 
-        chunk = None
-        chunks_size = 0
-
         # discard whole chunks
+        chunks_size = 0
         size = min (size + self.offset, self.chunks_size)
         while self.chunks:
             if chunks_size > size:
@@ -67,8 +72,8 @@ class Buffer (object):
         # cut chunk if needed
         offset = len (chunk) - (chunks_size - size)
         if offset << 1 > len (chunk):
-            self.offset = 0
             chunk = chunk [offset:]
+            self.offset = 0
         else:
             self.offset = offset
 
@@ -86,7 +91,7 @@ class Buffer (object):
     def __bool__ (self):
         """Is buffer not empty?
         """
-        return bool (self.chunks)
+        return bool (self.chunks_size)
     __nonzero__ = __bool__
 
 

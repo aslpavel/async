@@ -44,13 +44,13 @@ class AsyncFile (AsyncStream):
     # Read                                                                     #
     #--------------------------------------------------------------------------#
     @Async
-    def ReadRaw (self, buffer):
+    def ReadRaw (self, size, cancel = None):
         """Unbuffered asynchronous read
         """
         while True:
             try:
-                data = os.read (self.fd, self.buffer_size)
-                if not data:
+                data = os.read (self.fd, size)
+                if size and not data:
                     raise BrokenPipeError (errno.EPIPE, 'Broken pipe')
                 AsyncReturn (data)
 
@@ -60,13 +60,13 @@ class AsyncFile (AsyncStream):
                         raise BrokenPipeError (error.errno, error.strerror)
                     raise
 
-            yield self.core.Poll (self.fd, self.core.READ)
+            yield self.core.Poll (self.fd, self.core.READ, cancel)
 
     #--------------------------------------------------------------------------#
     # Write                                                                    #
     #--------------------------------------------------------------------------#
     @Async
-    def WriteRaw (self, data):
+    def WriteRaw (self, data, cancel = None):
         """Unbuffered asynchronous write
         """
         while True:
@@ -79,7 +79,7 @@ class AsyncFile (AsyncStream):
                         raise BrokenPipeError (error.errno, error.strerror)
                     raise
 
-            yield self.core.Poll (self.fd, self.core.WRITE)
+            yield self.core.Poll (self.fd, self.core.WRITE, cancel)
 
     #--------------------------------------------------------------------------#
     # Dispose                                                                  #

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from .buffer import Buffer
+from .error import BrokenPipeError
 from ..future import SucceededFuture
 from ..async import Async, AsyncReturn, DummyAsync
 
@@ -26,7 +27,7 @@ class AsyncStream (object):
     # Read                                                                     #
     #--------------------------------------------------------------------------#
     @DummyAsync
-    def ReadRaw (self, size):
+    def ReadRaw (self, size, cancel = None):
         """Unbuffered asynchronous read
         """
         raise NotImplementedError ()
@@ -40,7 +41,7 @@ class AsyncStream (object):
 
         buffer = self.read_buffer
         if not buffer:
-            buffer.Put ((yield self.ReadRaw (self.buffer_size)))
+            buffer.Put ((yield self.ReadRaw (self.buffer_size, cancel)))
 
         data = buffer.Peek (size)
         buffer.Discard (size)
@@ -55,10 +56,72 @@ class AsyncStream (object):
 
         buffer = self.read_buffer
         while len (buffer) < size:
-            buffer.Put ((yield self.ReadRaw (self.buffer_size)))
+            buffer.Put ((yield self.ReadRaw (self.buffer_size, cancel)))
 
         data = buffer.Peek (size)
         buffer.Discard (size)
+        AsyncReturn (data)
+
+    @Async
+    def ReadAll (self, size, cancel = None):
+        """Read asynchronously data until stream is closed
+        """
+        try:
+            while True:
+                buffer.Put ((yield self.ReadRaw (self.buffer_size, cancel)))
+
+        except BrokenPipeError:
+            if not buffer:
+                raise
+
+        data = buffer.Peek (len (buffer))
+        buffer.Discard ()
+        AsyncReturn (data)
+
+    @Async
+    def ReadFind (self, sub = None, cancel = None):
+        """Read asynchronously until substring is found
+
+        Returns data including substring.
+        """
+        sub = sub or b'\n'
+
+        offset = 0
+        buffer = self.read_buffer
+
+        while True:
+            data = buffer.Peek (len (buffer))
+            find_offset = data [offset:].find (sub)
+            if find_offset >= 0:
+                break
+
+            offset = max (0, len (data) - len (sub))
+            buffer.Put ((yield self.ReadRaw (self.buffer_size, cancel)))
+
+        data_size = offset + find_offset + len (sub)
+        data = buffer.Peek (data_size)
+        buffer.Discard (data_size)
+        AsyncReturn (data)
+
+    @Async
+    def ReadFindRegex (self, regex, cancel = None):
+        """Read asynchronously until regular expression is matched
+
+        Returns data including match.
+        """
+
+        buffer = self.read_buffer
+        while True:
+            data = buffer.Peek (len (buffer))
+            match = regex.search (data)
+            if match:
+                break
+
+            buffer.Put ((yield self.ReadRaw (self.buffer_size, cancel)))
+
+        data_size = match.end ()
+        data = buffer.Peek (data_size)
+        buffer.Discard (data_size)
         AsyncReturn (data)
 
     #--------------------------------------------------------------------------#
