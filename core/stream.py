@@ -63,9 +63,10 @@ class AsyncStream (object):
         AsyncReturn (data)
 
     @Async
-    def ReadAll (self, size, cancel = None):
+    def ReadAll (self, cancel = None):
         """Read asynchronously data until stream is closed
         """
+        buffer = self.read_buffer
         try:
             while True:
                 buffer.Put ((yield self.ReadRaw (self.buffer_size, cancel)))

@@ -20,4 +20,5 @@ else:
 
 BlockingErrorSet = {errno.EAGAIN, errno.EALREADY, errno.EWOULDBLOCK, errno.EINPROGRESS}
 PipeErrorSet     = {errno.EPIPE,  errno.ESHUTDOWN}
+
 # vim: nu ft=python columns=120 :

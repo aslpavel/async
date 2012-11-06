@@ -15,9 +15,9 @@ class AsyncSocket (AsyncFile):
     """
 
     def __init__ (self, sock, buffer_size = None, core = None):
-        AsyncFile.__init__ (self, sock.fileno (), buffer_size, False, core)
-
         self.sock = sock
+
+        AsyncFile.__init__ (self, sock.fileno (), buffer_size, False, core)
 
     #--------------------------------------------------------------------------#
     # Properties                                                               #
@@ -124,10 +124,27 @@ class AsyncSocket (AsyncFile):
     #--------------------------------------------------------------------------#
     # Dispose                                                                  #
     #--------------------------------------------------------------------------#
-    def Dispose (self):
+    def DisposeRaw (self):
         """Dispose socket
+
+        As closefd is initialized with False, os.close from AsyncFile won't
+        be called.
         """
         AsyncFile.DisposeRaw (self)
         self.sock.close ()
+
+    #--------------------------------------------------------------------------#
+    # Options                                                                  #
+    #--------------------------------------------------------------------------#
+    def Blocking (self, enable = None):
+        """Set or get "blocking" value
+
+        If enable is not set, returns current "blocking" value.
+        """
+        if enable is None:
+            return self.sock.gettimeout () != 0.0
+
+        self.sock.setblocking (enable)
+        return enable
 
 # vim: nu ft=python columns=120 :
