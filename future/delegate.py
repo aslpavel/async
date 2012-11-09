@@ -8,7 +8,7 @@ __all__ = ('DelegatedFuture',)
 class DelegatedFuture (Future):
     """Delegated future
 
-    Delegate future behaviour to different future object.
+    Delegate future behavior to different future object.
     """
     __slots__ = tuple ()
 

@@ -2,7 +2,7 @@
 import sys
 import inspect
 
-from .future.future import SucceededFuture, FailedFuture
+from .future.future import Future, SucceededFuture, FailedFuture
 from .future.source import FutureSource
 
 __all__ = ('Async', 'AsyncReturn', 'DummyAsync',)
@@ -39,13 +39,18 @@ def Async (function):
                     future = (generator.send  (result) if error is None else
                               generator.throw (*error))
 
-                    if future.IsCompleted ():
+                    if not isinstance (future, Future):
+                        raise ValueError ('Generator yielded not a Future type: {}'
+                            .format (type (future)))
+
+                    elif future.IsCompleted ():
                         # avoid recursion
                         error  = future.Error ()
                         if error is None:
                             result = future.Result ()
                         else:
                             result = None
+
                     else:
                         future.Continue (continuation)
                         return
