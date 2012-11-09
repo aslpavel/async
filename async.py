@@ -40,8 +40,7 @@ def Async (function):
                               generator.throw (*error))
 
                     if not isinstance (future, Future):
-                        raise TypeError ('Generator yielded not a Future type: {}'
-                            .format (type (future).__name__))
+                        raise TypeError ('Generator yielded not a Future object: {}'.format (future)
 
                     elif future.IsCompleted ():
                         # avoid recursion
