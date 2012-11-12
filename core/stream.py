@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import struct
+
 from .buffer import Buffer
 from .error import BrokenPipeError
 from ..future import SucceededFuture
@@ -11,6 +13,7 @@ __all__ = ('AsyncStream',)
 class AsyncStream (object):
     """Asynchronous Stream
     """
+    msg_struct = struct.Struct ('>I')
     default_buffer_size = 1 << 16
 
     def __init__ (self, buffer_size = None):
@@ -43,9 +46,7 @@ class AsyncStream (object):
         if not buffer:
             buffer.Put ((yield self.ReadRaw (self.buffer_size, cancel)))
 
-        data = buffer.Peek (size)
-        buffer.Discard (size)
-        AsyncReturn (data)
+        AsyncReturn (buffer.Pop (size))
 
     @Async
     def ReadExactly (self, size, cancel = None):
@@ -58,9 +59,33 @@ class AsyncStream (object):
         while len (buffer) < size:
             buffer.Put ((yield self.ReadRaw (self.buffer_size, cancel)))
 
-        data = buffer.Peek (size)
-        buffer.Discard (size)
-        AsyncReturn (data)
+        AsyncReturn (buffer.Pop (size))
+
+    @Async
+    def ReadMsg (self, cancel = None):
+        """Read message asynchronously
+        """
+        buffer = self.read_buffer
+        msg_struct_size = self.msg_struct.size
+
+        # count
+        while len (buffer) < msg_struct_size:
+            buffer.Put ((yield self.ReadRaw (self.buffer_size, cancel)))
+        count = self.msg_struct.unpack (buffer.Pop (msg_struct_size)) [0]
+
+        # sizes
+        while len (buffer) < msg_struct_size * count:
+            buffer.Put ((yield self.ReadRaw (self.buffer_size, cancel)))
+        size  = 0
+        sizes = []
+        for _ in range (count):
+            sizes.append (self.msg_struct.unpack (buffer.Pop (msg_struct_size)) [0])
+            size += sizes [-1]
+
+        # chunks
+        while len (buffer) < size:
+            buffer.Put ((yield self.ReadRaw (self.buffer_size, cancel)))
+        AsyncReturn (tuple (buffer.Pop (size) for size in sizes))
 
     @Async
     def ReadAll (self, cancel = None):
@@ -75,15 +100,13 @@ class AsyncStream (object):
             if not buffer:
                 raise
 
-        data = buffer.Peek (len (buffer))
-        buffer.Discard ()
-        AsyncReturn (data)
+        AsyncReturn (buffer.Pop (len (buffer)))
 
     @Async
     def ReadFind (self, sub = None, cancel = None):
         """Read asynchronously until substring is found
 
-        Returns data including substring.
+        Returns data including substring. Default substring is "\\n".
         """
         sub = sub or b'\n'
 
@@ -99,10 +122,7 @@ class AsyncStream (object):
             offset = max (0, len (data) - len (sub))
             buffer.Put ((yield self.ReadRaw (self.buffer_size, cancel)))
 
-        data_size = offset + find_offset + len (sub)
-        data = buffer.Peek (data_size)
-        buffer.Discard (data_size)
-        AsyncReturn (data)
+        AsyncReturn (buffer.Pop (offset + find_offset + len (sub)))
 
     @Async
     def ReadFindRegex (self, regex, cancel = None):
@@ -120,16 +140,13 @@ class AsyncStream (object):
 
             buffer.Put ((yield self.ReadRaw (self.buffer_size, cancel)))
 
-        data_size = match.end ()
-        data = buffer.Peek (data_size)
-        buffer.Discard (data_size)
-        AsyncReturn (data)
+        AsyncReturn ((buffer.Pop (match.end ()), match))
 
     #--------------------------------------------------------------------------#
     # Write                                                                    #
     #--------------------------------------------------------------------------#
     @DummyAsync
-    def WriteRaw (self, data):
+    def WriteRaw (self, data, cancel = None):
         """Unbuffered asynchronous write
         """
         raise NotImplementedError ()
@@ -142,13 +159,31 @@ class AsyncStream (object):
         if len (buffer) >= self.buffer_size:
             self.Flush ()
 
+    def WriteMsg (self, *msg):
+        """Write message to file without blocking
+        """
+        # count
+        self.Write (self.msg_struct.pack (len (msg)))
+
+        # sizes
+        for chunk in msg:
+            self.Write (self.msg_struct.pack (len (chunk)))
+
+        # chunks
+        for chunk in msg:
+            self.Write (chunk)
+
     @Async
     def write_main (self):
         """Write coroutine main function
         """
-        buffer = self.write_buffer
-        while buffer:
-            buffer.Discard ((yield self.WriteRaw (buffer.Peek (self.buffer_size))))
+        try:
+            buffer = self.write_buffer
+            while buffer:
+                buffer.Discard ((yield self.WriteRaw (buffer.Peek (self.buffer_size))))
+
+        except Exception:
+            self.Dispose ()
 
     #--------------------------------------------------------------------------#
     # Flush                                                                    #

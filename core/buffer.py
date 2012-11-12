@@ -28,6 +28,13 @@ class Buffer (object):
             self.chunks.append (data)
             self.chunks_size += len (data)
 
+    def Pop (self, size):
+        """Pop data from buffer
+        """
+        data = self.Peek (size)
+        self.Discard (size)
+        return data
+
     def Peek (self, size):
         """Peek "size" bytes for buffer
         """

@@ -34,10 +34,10 @@ def AsyncTest (test):
 #------------------------------------------------------------------------------#
 def load_tests (loader, tests, pattern):
     from unittest import TestSuite
-    from . import future, source, async, limit, file, buffer
+    from . import future, source, async, limit, file, buffer, stream
 
     suite = TestSuite ()
-    for test in (future, source, async, limit, file, buffer):
+    for test in (future, source, async, limit, file, buffer, stream):
         suite.addTests (loader.loadTestsFromModule (test))
 
     return suite
