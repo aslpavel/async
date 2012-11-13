@@ -13,7 +13,7 @@ __all__ = ('AsyncStream',)
 class AsyncStream (object):
     """Asynchronous Stream
     """
-    msg_struct = struct.Struct ('>I')
+    tup_struct = struct.Struct ('>I')
     default_buffer_size = 1 << 16
 
     def __init__ (self, buffer_size = None):
@@ -49,7 +49,7 @@ class AsyncStream (object):
         AsyncReturn (buffer.Pop (size))
 
     @Async
-    def ReadExactly (self, size, cancel = None):
+    def ReadUntilSize (self, size, cancel = None):
         """Read asynchronously exactly size bytes
         """
         if not size:
@@ -62,33 +62,7 @@ class AsyncStream (object):
         AsyncReturn (buffer.Pop (size))
 
     @Async
-    def ReadMsg (self, cancel = None):
-        """Read message asynchronously
-        """
-        buffer = self.read_buffer
-        msg_struct_size = self.msg_struct.size
-
-        # count
-        while len (buffer) < msg_struct_size:
-            buffer.Put ((yield self.ReadRaw (self.buffer_size, cancel)))
-        count = self.msg_struct.unpack (buffer.Pop (msg_struct_size)) [0]
-
-        # sizes
-        while len (buffer) < msg_struct_size * count:
-            buffer.Put ((yield self.ReadRaw (self.buffer_size, cancel)))
-        size  = 0
-        sizes = []
-        for _ in range (count):
-            sizes.append (self.msg_struct.unpack (buffer.Pop (msg_struct_size)) [0])
-            size += sizes [-1]
-
-        # chunks
-        while len (buffer) < size:
-            buffer.Put ((yield self.ReadRaw (self.buffer_size, cancel)))
-        AsyncReturn (tuple (buffer.Pop (size) for size in sizes))
-
-    @Async
-    def ReadAll (self, cancel = None):
+    def ReadUntilEof (self, cancel = None):
         """Read asynchronously data until stream is closed
         """
         buffer = self.read_buffer
@@ -103,7 +77,7 @@ class AsyncStream (object):
         AsyncReturn (buffer.Pop (len (buffer)))
 
     @Async
-    def ReadFind (self, sub = None, cancel = None):
+    def ReadUntilSub (self, sub = None, cancel = None):
         """Read asynchronously until substring is found
 
         Returns data including substring. Default substring is "\\n".
@@ -125,10 +99,10 @@ class AsyncStream (object):
         AsyncReturn (buffer.Pop (offset + find_offset + len (sub)))
 
     @Async
-    def ReadFindRegex (self, regex, cancel = None):
+    def ReadUntilRegex (self, regex, cancel = None):
         """Read asynchronously until regular expression is matched
 
-        Returns data including match.
+        Returns data (including match) and match object.
         """
 
         buffer = self.read_buffer
@@ -142,6 +116,32 @@ class AsyncStream (object):
 
         AsyncReturn ((buffer.Pop (match.end ()), match))
 
+    @Async
+    def ReadTuple (self, cancel = None):
+        """Read Tuple<Bytes> asynchronously
+        """
+        buffer = self.read_buffer
+        tup_struct_size = self.tup_struct.size
+
+        # count
+        while len (buffer) < tup_struct_size:
+            buffer.Put ((yield self.ReadRaw (self.buffer_size, cancel)))
+        count = self.tup_struct.unpack (buffer.Pop (tup_struct_size)) [0]
+
+        # sizes
+        while len (buffer) < tup_struct_size * count:
+            buffer.Put ((yield self.ReadRaw (self.buffer_size, cancel)))
+        size  = 0
+        sizes = []
+        for _ in range (count):
+            sizes.append (self.tup_struct.unpack (buffer.Pop (tup_struct_size)) [0])
+            size += sizes [-1]
+
+        # chunks
+        while len (buffer) < size:
+            buffer.Put ((yield self.ReadRaw (self.buffer_size, cancel)))
+        AsyncReturn (tuple (buffer.Pop (size) for size in sizes))
+
     #--------------------------------------------------------------------------#
     # Write                                                                    #
     #--------------------------------------------------------------------------#
@@ -152,25 +152,23 @@ class AsyncStream (object):
         raise NotImplementedError ()
 
     def Write (self, data):
-        """Write to file without blocking
+        """Write Bytes to file without blocking
         """
         buffer = self.write_buffer
         buffer.Put (data)
         if len (buffer) >= self.buffer_size:
             self.Flush ()
 
-    def WriteMsg (self, *msg):
-        """Write message to file without blocking
+    def WriteTuple (self, tup):
+        """Write Tuple<Bytes> to file without blocking
         """
         # count
-        self.Write (self.msg_struct.pack (len (msg)))
-
+        self.Write (self.tup_struct.pack (len (tup)))
         # sizes
-        for chunk in msg:
-            self.Write (self.msg_struct.pack (len (chunk)))
-
+        for chunk in tup:
+            self.Write (self.tup_struct.pack (len (chunk)))
         # chunks
-        for chunk in msg:
+        for chunk in tup:
             self.Write (chunk)
 
     @Async

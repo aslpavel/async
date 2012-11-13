@@ -42,53 +42,53 @@ class StreamTest (unittest.TestCase):
         with self.assertRaises (BrokenPipeError):
             read.Result ()
 
-    def testReadExactly (self):
+    def testReadUntilSize (self):
         stream = TestStream (8)
 
-        read = stream.ReadExactly (10)
+        read = stream.ReadUntilSize (10)
         self.assertEqual (stream.ReadComplete (b'0123456789'), 8)
         self.assertFalse (read.IsCompleted (), False)
         self.assertEqual (stream.ReadComplete (b'0123456789'), 8)
         self.assertEqual (read.Result (), b'0123456701')
 
-        read = stream.ReadExactly (4)
+        read = stream.ReadUntilSize (4)
         self.assertEqual (read.Result (), b'2345')
 
-    def testReadAll (self):
+    def testReadUntilEof (self):
         stream = TestStream (1024)
 
-        read = stream.ReadAll ()
+        read = stream.ReadUntilEof ()
         stream.ReadComplete (b'01234')
         stream.ReadComplete (b'56789')
         self.assertEqual (read.IsCompleted (), False)
         stream.ReadComplete (None)
         self.assertEqual (read.Result (), b'0123456789')
 
-    def testReadFind (self):
+    def testReadUntilSub (self):
         stream = TestStream (8)
 
-        read = stream.ReadFind (b';')
+        read = stream.ReadUntilSub (b';')
         self.assertEqual (stream.ReadComplete (b'01234'), 5)
         self.assertFalse (read.IsCompleted (), False)
         self.assertEqual (stream.ReadComplete (b'56789;01'), 8)
         self.assertEqual (read.Result (), b'0123456789;')
 
-        read = stream.ReadFind (b';')
+        read = stream.ReadUntilSub (b';')
         self.assertFalse (read.IsCompleted (), False)
         self.assertEqual (stream.ReadComplete (b'234;'), 4)
         self.assertEqual (read.Result (), b'01234;')
 
-    def testReadFindRegex (self):
+    def testReadUntilRegex (self):
         stream = TestStream (1024)
         regex  = re.compile (br'([^=]+)=([^&]+)&')
 
-        read = stream.ReadFindRegex (regex)
+        read = stream.ReadUntilRegex (regex)
         stream.ReadComplete (b'key_0=')
         self.assertFalse (read.IsCompleted (), False)
         stream.ReadComplete (b'value_0&key_1')
         self.assertEqual (read.Result () [0], b'key_0=value_0&')
 
-        read = stream.ReadFindRegex (regex)
+        read = stream.ReadUntilRegex (regex)
         self.assertFalse (read.IsCompleted (), False)
         stream.ReadComplete (b'=value_1&tail')
         self.assertEqual (read.Result () [0], b'key_1=value_1&')
@@ -111,21 +111,21 @@ class StreamTest (unittest.TestCase):
         stream.WriteComplete (2)
         self.assertEqual (stream.Written, b'0123456789')
 
-    def testMsg (self):
+    def testTuple (self):
         stream = TestStream (1024)
 
-        msg = b'from', b'to', b'body'
+        tup = b'from', b'to', b'body'
 
-        stream.WriteMsg (*msg)
+        stream.WriteTuple (tup)
         stream.Flush ()
         stream.WriteComplete (1024)
-        msg_data = stream.Written
+        tup_data = stream.Written
 
-        msg_future = stream.ReadMsg ()
-        for index in range (len (msg_data)):
-            self.assertFalse (msg_future.IsCompleted ())
-            self.assertEqual (stream.ReadComplete (msg_data [index:index + 1]), 1)
-        self.assertEqual (msg_future.Result (), msg)
+        tup_future = stream.ReadTuple ()
+        for index in range (len (tup_data)):
+            self.assertFalse (tup_future.IsCompleted ())
+            self.assertEqual (stream.ReadComplete (tup_data [index:index + 1]), 1)
+        self.assertEqual (tup_future.Result (), tup)
 
 #------------------------------------------------------------------------------#
 # Test Stream                                                                  #
