@@ -4,14 +4,11 @@ import re
 import unittest
 import collections
 
-from . import AsyncTest
 from ..async import Async, AsyncReturn
-from ..future import FutureSource
+from ..future import FutureSource, FutureCanceled
 
 from ..core.error import BrokenPipeError
-from ..core.core import Core
 from ..core.stream import AsyncStream
-from ..core.buffer import Buffer
 
 #------------------------------------------------------------------------------#
 # Stream Test                                                                  #
@@ -146,7 +143,7 @@ class TestStream (AsyncStream):
         self.wr_buffer = io.BytesIO ()
 
         self.disposed = False
-        
+
     #--------------------------------------------------------------------------#
     # Read                                                                     #
     #--------------------------------------------------------------------------#

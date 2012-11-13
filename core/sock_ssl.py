@@ -1,22 +1,30 @@
 # -*- coding: utf-8 -*-
 import socket
 import errno
+try:
+    import ssl
+except ImportError:
+    ssl = None # no SSL support
 
-from .file import AsyncFile
+from .sock import AsyncSocket
 from .error import BrokenPipeError, BlockingErrorSet, PipeErrorSet
 from ..async import Async, AsyncReturn
 
-__all__ = ('AsyncSocket',)
+__all__ = ('AsyncSSLSocket',)
 #------------------------------------------------------------------------------#
-# Asynchronous Socket                                                          #
+# Asynchronous SSL Socket                                                      #
 #------------------------------------------------------------------------------#
-class AsyncSocket (AsyncFile):
-    """Asynchronous socket
+class AsyncSSLSocket (AsyncSocket):
+    """Asynchronous SSL Socket
+
+    If socket has already been connected it must be wrapped with
+    ssl.wrap_socket, otherwise it will be wrapped when AsyncSSLSocket.Connect
+    is finished.
     """
 
-    def __init__ (self, sock, buffer_size = None, core = None):
-        self.sock = sock
-        AsyncFile.__init__ (self, sock.fileno (), buffer_size, False, core)
+    def __init__ (self, sock, buffer_size = None, ssl_options = None, core = None):
+        self.ssl_options = ssl_options or {}
+        AsyncSocket.__init__ (self, sock, buffer_size, core)
 
     #--------------------------------------------------------------------------#
     # Properties                                                               #
@@ -41,6 +49,10 @@ class AsyncSocket (AsyncFile):
                     raise BrokenPipeError (errno.EPIPE, 'Broken pipe')
                 AsyncReturn (data)
 
+            except ssl.SSLError as error:
+                if error.args [0] != ssl.SSL_ERROR_WANT_READ:
+                    raise
+
             except socket.error as error:
                 if error.errno not in BlockingErrorSet:
                     if error.errno in PipeErrorSet:
@@ -60,6 +72,10 @@ class AsyncSocket (AsyncFile):
             try:
                 AsyncReturn (self.sock.send (data))
 
+            except ssl.SSLError as error:
+                if error.args [0] != ssl.SSL_ERROR_WANT_WRITE:
+                    raise
+
             except socket.error as error:
                 if error.errno not in BlockingErrorSet:
                     if error.errno in PipeErrorSet:
@@ -75,16 +91,27 @@ class AsyncSocket (AsyncFile):
     def Connect (self, address, cancel = None):
         """Connect asynchronously to address
         """
+        yield AsyncSocket.Connect (self, address, cancel)
+
+        # wrap socket
+        self.sock = ssl.wrap_socket (self.sock, do_handshake_on_connect = False, **self.ssl_options)
+
+        # do handshake
         while True:
+            event = None
             try:
-                self.sock.connect (address)
+                self.sock.do_handshake ()
                 AsyncReturn (self)
 
-            except socket.error as error:
-                if error.errno not in BlockingErrorSet:
+            except ssl.SSLError as error:
+                if error.args [0] == ssl.SSL_ERROR_WANT_READ:
+                    event = self.core.READ
+                elif error.args [0] == ssl.SSL_ERROR_WANT_WRITE:
+                    event = self.core.WRITE
+                else:
                     raise
 
-            yield self.core.Poll (self.fd, self.core.WRITE, cancel)
+            yield self.core.Poll (self.fd, event, cancel)
 
     #--------------------------------------------------------------------------#
     # Accept                                                                   #
@@ -92,66 +119,27 @@ class AsyncSocket (AsyncFile):
     @Async
     def Accept (self, cancel = None):
         """Asynchronously accept connection
+
+        Returns client AsyncSSLSocket and address.
         """
         while True:
             try:
                 client, addr = self.sock.accept ()
-                AsyncReturn ((AsyncSocket (client, self.buffer_size, self.core), addr))
+
+                # wrap client socket
+                context = getattr (self.sock, 'context', None)
+                if context:
+                    # use associated context (python 3.2 or higher)
+                    client = context.wrap_socket (client, server_side = True)
+                else:
+                    client = ssl.wrap_socket (client, server_side = True, **self.ssl_options)
+
+                AsyncReturn ((AsyncSSLSocket (client, self.buffer_size, self.ssl_options, self.core), addr))
 
             except socket.error as error:
                 if error.errno not in BlockingErrorSet:
                     raise
 
             yield self.core.Poll (self.fd, self.core.READ, cancel)
-
-    #--------------------------------------------------------------------------#
-    # Bind                                                                     #
-    #--------------------------------------------------------------------------#
-    def Bind (self, address):
-        """Bind socket to address
-        """
-        self.sock.bind (address)
-
-    #--------------------------------------------------------------------------#
-    # Listen                                                                   #
-    #--------------------------------------------------------------------------#
-    def Listen (self, backlog):
-        """Listen socket
-        """
-        self.sock.listen (backlog)
-
-    #--------------------------------------------------------------------------#
-    # Shutdown                                                                 #
-    #--------------------------------------------------------------------------#
-    def Shutdown (self, how):
-        """Shutdown socket
-        """
-        self.sock.shutdown (how)
-
-    #--------------------------------------------------------------------------#
-    # Dispose                                                                  #
-    #--------------------------------------------------------------------------#
-    def DisposeRaw (self):
-        """Dispose socket
-
-        As closefd is initialized with False, os.close from AsyncFile won't
-        be called.
-        """
-        AsyncFile.DisposeRaw (self)
-        self.sock.close ()
-
-    #--------------------------------------------------------------------------#
-    # Options                                                                  #
-    #--------------------------------------------------------------------------#
-    def Blocking (self, enable = None):
-        """Set or get "blocking" value
-
-        If enable is not set, returns current "blocking" value.
-        """
-        if enable is None:
-            return self.sock.gettimeout () != 0.0
-
-        self.sock.setblocking (enable)
-        return enable
 
 # vim: nu ft=python columns=120 :
