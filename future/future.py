@@ -213,14 +213,17 @@ class Future (object):
     def __str__  (self):
         """String representation of the future
         """
+        addr = id (self)
+        name = type (self).__name__
+
         if self.IsCompleted ():
             error = self.Error ()
             if error is None:
-                return '|> {} {}|'.format (self.Result (), id (self))
+                return '<{}[={}] at {}>'.format (name, self.Result (), addr)
             else:
-                return '|~ {}: {} {}|'.format (error [0].__name__, error [1], id (self))
+                return '<{}[~{}: {}] at {}>'.format (name, error [0].__name__, error [1], addr)
         else:
-            return '|? None {}|'.format (id (self))
+            return '<{}[?] at {}>'.format (name, addr)
 
     #--------------------------------------------------------------------------#
     # Traceback                                                                #
