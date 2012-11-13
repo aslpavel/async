@@ -224,7 +224,7 @@ class Timer (object):
         while self.queue:
             when, index, source = self.queue [0]
             if source.Future.IsCompleted ():
-                heappop (self.queue) # future has been cancelled
+                heappop (self.queue) # future has been canceled
                 continue
 
             if when > time:
@@ -241,7 +241,7 @@ class Timer (object):
         while self.queue:
             when, index, source = self.queue [0]
             if not source.Future.IsCompleted ():
-                return when # future has been cancelled
+                return when # future has been canceled
 
             heappop (self.queue)
             continue
