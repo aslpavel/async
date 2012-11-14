@@ -69,10 +69,7 @@ class AsyncStream (object):
         try:
             while True:
                 buffer.Put ((yield self.ReadRaw (self.buffer_size, cancel)))
-
-        except BrokenPipeError:
-            if not buffer:
-                raise
+        except BrokenPipeError: pass
 
         AsyncReturn (buffer.Pop (len (buffer)))
 

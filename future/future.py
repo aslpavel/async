@@ -39,11 +39,6 @@ class Future (object):
     #--------------------------------------------------------------------------#
     # Continuation                                                             #
     #--------------------------------------------------------------------------#
-    def __rshift__ (self, continuation):
-        """Same as Continue
-        """
-        return self.Continue (continuation)
-
     def Continue (self, continuation):
         """Continue with continuation
 
@@ -70,11 +65,6 @@ class Future (object):
         Resolved future is passed as only argument of the continuation.
         """
         return self.Continue (lambda *_: continuation (self))
-
-    def __ge__ (self, continuation):
-        """Same as ContinueWith
-        """
-        return self.ContinueWith (continuation)
 
     def ContinueWith (self, continuation):
         """Continue with continuation
