@@ -107,6 +107,8 @@ class Core (object):
         with BrokenPipeError, otherwise future is resolved with bitmap of
         the events happened of file descriptor or error if any.
         """
+        assert fd >= 0, 'Invalid file descriptor: {}'.format (fd)
+
         file = self.files.get (fd)
         if file is None:
             file = File (fd, self)

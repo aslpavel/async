@@ -94,7 +94,7 @@ class EPollPoller (Poller):
 
         self.epoll = select.epoll ()
 
-        from .file import CloseOnExecFD
+        from ..stream.file import CloseOnExecFD
         CloseOnExecFD (self.epoll.fileno (), True)
 
     #--------------------------------------------------------------------------#

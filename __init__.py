@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
-from . import future, async, limit, core, green
+from . import future, async, limit, core, stream, green
 
 from .future import *
 from .async  import *
 from .limit  import *
 from .core   import *
+from .stream import *
 from .green  import *
 
-__all__ = future.__all__ + async.__all__ + limit.__all__ + core.__all__ + green.__all__
+__all__ = (future.__all__ + async.__all__ + limit.__all__ + core.__all__ +
+           stream.__all__ + green.__all__)
 #------------------------------------------------------------------------------#
 # Load Test Protocol                                                           #
 #------------------------------------------------------------------------------#

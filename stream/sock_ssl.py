@@ -6,15 +6,16 @@ try:
 except ImportError:
     ssl = None # no SSL support
 
-from .sock import AsyncSocket
-from .error import BrokenPipeError, BlockingErrorSet, PipeErrorSet
+from .sock import Socket
+from .stream_buff import BufferedStream
 from ..async import Async, AsyncReturn
+from ..core.error import BrokenPipeError, BlockingErrorSet, PipeErrorSet
 
-__all__ = ('AsyncSSLSocket',)
+__all__ = ('SocketSSL', 'BufferedSocketSSL')
 #------------------------------------------------------------------------------#
 # Asynchronous SSL Socket                                                      #
 #------------------------------------------------------------------------------#
-class AsyncSSLSocket (AsyncSocket):
+class SocketSSL (Socket):
     """Asynchronous SSL Socket
 
     If socket has already been connected it must be wrapped with
@@ -22,24 +23,15 @@ class AsyncSSLSocket (AsyncSocket):
     is finished.
     """
 
-    def __init__ (self, sock, buffer_size = None, ssl_options = None, core = None):
+    def __init__ (self, sock, ssl_options = None, core = None):
         self.ssl_options = ssl_options or {}
-        AsyncSocket.__init__ (self, sock, buffer_size, core)
-
-    #--------------------------------------------------------------------------#
-    # Properties                                                               #
-    #--------------------------------------------------------------------------#
-    @property
-    def Socket (self):
-        """Socket object
-        """
-        return self.sock
+        Socket.__init__ (self, sock, core)
 
     #--------------------------------------------------------------------------#
     # Read                                                                     #
     #--------------------------------------------------------------------------#
     @Async
-    def ReadRaw (self, size, cancel = None):
+    def Read (self, size, cancel = None):
         """Unbuffered asynchronous read
         """
         while True:
@@ -65,7 +57,7 @@ class AsyncSSLSocket (AsyncSocket):
     # Write                                                                    #
     #--------------------------------------------------------------------------#
     @Async
-    def WriteRaw (self, data, cancel = None):
+    def Write (self, data, cancel = None):
         """Unbuffered asynchronous write
         """
         while True:
@@ -91,7 +83,7 @@ class AsyncSSLSocket (AsyncSocket):
     def Connect (self, address, cancel = None):
         """Connect asynchronously to address
         """
-        yield AsyncSocket.Connect (self, address, cancel)
+        yield Socket.Connect (self, address, cancel)
 
         # wrap socket
         self.sock = ssl.wrap_socket (self.sock, do_handshake_on_connect = False, **self.ssl_options)
@@ -134,12 +126,31 @@ class AsyncSSLSocket (AsyncSocket):
                 else:
                     client = ssl.wrap_socket (client, server_side = True, **self.ssl_options)
 
-                AsyncReturn ((AsyncSSLSocket (client, self.buffer_size, self.ssl_options, self.core), addr))
+                AsyncReturn ((SocketSSL (client, self.buffer_size, self.ssl_options, self.core), addr))
 
             except socket.error as error:
                 if error.errno not in BlockingErrorSet:
                     raise
 
             yield self.core.Poll (self.fd, self.core.READ, cancel)
+
+#------------------------------------------------------------------------------#
+# Buffered SSL Socket                                                          #
+#------------------------------------------------------------------------------#
+class BufferedSocketSSL (BufferedStream):
+    """Buffered asynchronous SSL socket
+    """
+    def __init__ (self, sock, buffer_size = None, ssl_options = None, core = None):
+        BufferedStream.__init__ (SocketSSL (sock, ssl_options, core), buffer_size)
+
+    #--------------------------------------------------------------------------#
+    # Accept                                                                   #
+    #--------------------------------------------------------------------------#
+    @Async
+    def Accept (self):
+        """Accept connection
+        """
+        sock, addr = yield self.base.Accept ()
+        AsyncReturn ((BufferedSocketSSL (sock.Socket, self.buffer_size, sock.ssl_options, sock.core), addr))
 
 # vim: nu ft=python columns=120 :

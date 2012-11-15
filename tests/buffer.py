@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import unittest
 
-from ..core.buffer import Buffer
+from ..stream.buff import Buffer
 
 __all__ = ('BufferTest',)
 #------------------------------------------------------------------------------#

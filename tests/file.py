@@ -2,7 +2,7 @@
 import os
 import unittest
 
-from ..core.file import BlockingFD, CloseOnExecFD
+from ..stream.file import BlockingFD, CloseOnExecFD
 
 __all__ = ('FileOptionsTest',)
 #------------------------------------------------------------------------------#

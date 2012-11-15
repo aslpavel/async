@@ -157,6 +157,9 @@ class Future (object):
         from future set.
         """
         futures = tuple (futures)
+        if not futures:
+            return FailedFuture (ValueError ('Future set is empty'))
+
         source  = FutureSource ()
 
         for future in futures:

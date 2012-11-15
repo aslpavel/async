@@ -2,21 +2,23 @@
 import socket
 import errno
 
-from .file import AsyncFile
-from .error import BrokenPipeError, BlockingErrorSet, PipeErrorSet
+from .file import File
+from .stream_buff import BufferedStream
 from ..async import Async, AsyncReturn
+from ..core.error import BrokenPipeError, BlockingErrorSet, PipeErrorSet
 
-__all__ = ('AsyncSocket',)
+__all__ = ('Socket', 'BufferedSocket',)
 #------------------------------------------------------------------------------#
-# Asynchronous Socket                                                          #
+# Socket                                                                       #
 #------------------------------------------------------------------------------#
-class AsyncSocket (AsyncFile):
-    """Asynchronous socket
+class Socket (File):
+    """Asynchronous raw socket
     """
 
-    def __init__ (self, sock, buffer_size = None, core = None):
+    def __init__ (self, sock, core = None):
         self.sock = sock
-        AsyncFile.__init__ (self, sock.fileno (), buffer_size, False, core)
+
+        File.__init__ (self, sock.fileno (), False, core)
 
     #--------------------------------------------------------------------------#
     # Properties                                                               #
@@ -31,7 +33,7 @@ class AsyncSocket (AsyncFile):
     # Read                                                                     #
     #--------------------------------------------------------------------------#
     @Async
-    def ReadRaw (self, size, cancel = None):
+    def Read (self, size, cancel = None):
         """Unbuffered asynchronous read
         """
         while True:
@@ -53,7 +55,7 @@ class AsyncSocket (AsyncFile):
     # Write                                                                    #
     #--------------------------------------------------------------------------#
     @Async
-    def WriteRaw (self, data, cancel = None):
+    def Write (self, data, cancel = None):
         """Unbuffered asynchronous write
         """
         while True:
@@ -96,7 +98,7 @@ class AsyncSocket (AsyncFile):
         while True:
             try:
                 client, addr = self.sock.accept ()
-                AsyncReturn ((AsyncSocket (client, self.buffer_size, self.core), addr))
+                AsyncReturn ((Socket (client, self.core), addr))
 
             except socket.error as error:
                 if error.errno not in BlockingErrorSet:
@@ -131,14 +133,38 @@ class AsyncSocket (AsyncFile):
     #--------------------------------------------------------------------------#
     # Dispose                                                                  #
     #--------------------------------------------------------------------------#
-    def DisposeRaw (self):
+    @Async
+    def Dispose (self):
         """Dispose socket
-
-        As closefd is initialized with False, os.close from AsyncFile won't
-        be called.
         """
-        AsyncFile.DisposeRaw (self)
-        self.sock.close ()
+        if self.disposed:
+            return
+
+        try:
+            yield File.Dispose (self)
+        finally:
+            sock, self.sock = self.sock, None
+            sock.close ()
+
+    #--------------------------------------------------------------------------#
+    # Detach                                                                   #
+    #--------------------------------------------------------------------------#
+    @Async
+    def Detach (self):
+        """Detach socket object
+
+        Put the stream into closed state without actually closing the underlying
+        socket. The socket is returned, and can be reused for other purposes.
+        """
+        if self.disposed:
+            raise ValueError ('Socket has been disposed')
+
+        try:
+            yield File.Dispose (self)
+        finally:
+            sock, self.sock = self.sock, None
+
+        AsyncReturn (sock)
 
     #--------------------------------------------------------------------------#
     # Options                                                                  #
@@ -153,5 +179,24 @@ class AsyncSocket (AsyncFile):
 
         self.sock.setblocking (enable)
         return enable
+
+#------------------------------------------------------------------------------#
+# Buffered Socket                                                              #
+#------------------------------------------------------------------------------#
+class BufferedSocket (BufferedStream):
+    """Buffered asynchronous socket
+    """
+    def __init__ (self, sock, buffer_size = None, core = None):
+        BufferedStream.__init__ (self, Socket (sock, core), buffer_size)
+
+    #--------------------------------------------------------------------------#
+    # Accept                                                                   #
+    #--------------------------------------------------------------------------#
+    @Async
+    def Accept (self):
+        """Asynchronously accept connection
+        """
+        sock, addr = yield self.base.Accept ()
+        AsyncReturn ((BufferedSocket (sock.Socket, self.buffer_size, sock.core), addr))
 
 # vim: nu ft=python columns=120 :

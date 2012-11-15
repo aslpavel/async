@@ -7,8 +7,8 @@ import collections
 from ..async import Async, AsyncReturn
 from ..future import FutureSource, FutureCanceled
 
-from ..core.error import BrokenPipeError
-from ..core.stream import AsyncStream
+from ..core import BrokenPipeError
+from ..stream import Stream, BufferedStream
 
 #------------------------------------------------------------------------------#
 # Stream Test                                                                  #
@@ -18,7 +18,7 @@ class StreamTest (unittest.TestCase):
     """
 
     def testRead (self):
-        stream = TestStream (8)
+        stream = BufferedStream (TestStream (), 8)
 
         read = stream.Read (6)
         self.assertFalse (read.IsCompleted ())
@@ -43,7 +43,7 @@ class StreamTest (unittest.TestCase):
             read.Result ()
 
     def testReadUntilSize (self):
-        stream = TestStream (8)
+        stream = BufferedStream (TestStream (), 8)
 
         read = stream.ReadUntilSize (10)
         self.assertEqual (stream.ReadComplete (b'0123456789'), 8)
@@ -55,7 +55,7 @@ class StreamTest (unittest.TestCase):
         self.assertEqual (read.Result (), b'2345')
 
     def testReadUntilEof (self):
-        stream = TestStream (1024)
+        stream = BufferedStream (TestStream (), 1024)
 
         read = stream.ReadUntilEof ()
         stream.ReadComplete (b'01234')
@@ -65,7 +65,7 @@ class StreamTest (unittest.TestCase):
         self.assertEqual (read.Result (), b'0123456789')
 
     def testReadUntilSub (self):
-        stream = TestStream (8)
+        stream = BufferedStream (TestStream (), 8)
 
         read = stream.ReadUntilSub (b';')
         self.assertEqual (stream.ReadComplete (b'01234'), 5)
@@ -79,7 +79,7 @@ class StreamTest (unittest.TestCase):
         self.assertEqual (read.Result (), b'01234;')
 
     def testReadUntilRegex (self):
-        stream = TestStream (1024)
+        stream = BufferedStream (TestStream (), 1024)
         regex  = re.compile (br'([^=]+)=([^&]+)&')
 
         read = stream.ReadUntilRegex (regex)
@@ -97,7 +97,7 @@ class StreamTest (unittest.TestCase):
         self.assertEqual (read.Result (), b'tail')
 
     def testWrite (self):
-        stream = TestStream (8)
+        stream = BufferedStream (TestStream (), 8)
 
         stream.Write (b'0123456')
         stream.WriteComplete (10)
@@ -112,7 +112,7 @@ class StreamTest (unittest.TestCase):
         self.assertEqual (stream.Written, b'0123456789')
 
     def testTuple (self):
-        stream = TestStream (1024)
+        stream = BufferedStream (TestStream (), 1024)
 
         tup = b'from', b'to', b'body'
 
@@ -130,11 +130,11 @@ class StreamTest (unittest.TestCase):
 #------------------------------------------------------------------------------#
 # Test Stream                                                                  #
 #------------------------------------------------------------------------------#
-class TestStream (AsyncStream):
+class TestStream (Stream):
     """Asynchronous test stream
     """
-    def __init__ (self, buffer_size):
-        AsyncStream.__init__ (self, buffer_size)
+    def __init__ (self):
+        Stream.__init__ (self)
 
         self.rd = Event ()
         self.rd_buffer = collections.deque ()
@@ -142,13 +142,11 @@ class TestStream (AsyncStream):
         self.wr = Event ()
         self.wr_buffer = io.BytesIO ()
 
-        self.disposed = False
-
     #--------------------------------------------------------------------------#
     # Read                                                                     #
     #--------------------------------------------------------------------------#
     @Async
-    def ReadRaw (self, size, cancel = None):
+    def Read (self, size, cancel = None):
         if self.disposed:
             raise RuntimeError ('Stream has been disposed')
 
@@ -178,7 +176,7 @@ class TestStream (AsyncStream):
     # Write                                                                    #
     #--------------------------------------------------------------------------#
     @Async
-    def WriteRaw (self, data, cancel = None):
+    def Write (self, data, cancel = None):
         if self.disposed:
             raise RuntimeError ('Stream has been disposed')
 
@@ -196,12 +194,6 @@ class TestStream (AsyncStream):
     def WriteComplete (self, size):
         assert size is None or size > 0
         self.wr (size)
-
-    #--------------------------------------------------------------------------#
-    # Dispose                                                                  #
-    #--------------------------------------------------------------------------#
-    def DisposeRaw (self):
-        self.disposed = True
 
 #------------------------------------------------------------------------------#
 # Event                                                                        #

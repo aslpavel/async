@@ -3,25 +3,27 @@ import os
 import errno
 import fcntl
 
-from .core import Core
-from .stream import AsyncStream
-from .error import BrokenPipeError, BlockingErrorSet, PipeErrorSet
+from .stream import Stream
+from .stream_buff import BufferedStream
+from ..future import RaisedFuture
 from ..async import Async, AsyncReturn
+from ..core import Core
+from ..core.error import BrokenPipeError, BlockingErrorSet, PipeErrorSet
 
-__all__ = ('AsyncFile', 'BlockingFD', 'CloseOnExecFD',)
+__all__ = ('File', 'BufferedFile', 'BlockingFD', 'CloseOnExecFD',)
 #------------------------------------------------------------------------------#
-# Asynchronous File                                                            #
+# File                                                                         #
 #------------------------------------------------------------------------------#
-class AsyncFile (AsyncStream):
-    """Asynchronous File
+class File (Stream):
+    """Asynchronous raw File
     """
 
-    def __init__ (self, fd, buffer_size = None, closefd = None, core = None):
-        AsyncStream.__init__ (self, buffer_size)
+    def __init__ (self, fd, closefd = None, core = None):
+        Stream.__init__ (self)
 
         self.fd = fd
-        self.core = core or Core.Instance ()
         self.closefd = closefd is None or closefd
+        self.core = core or Core.Instance ()
 
         self.Blocking (False)
 
@@ -44,7 +46,7 @@ class AsyncFile (AsyncStream):
     # Read                                                                     #
     #--------------------------------------------------------------------------#
     @Async
-    def ReadRaw (self, size, cancel = None):
+    def Read (self, size, cancel = None):
         """Unbuffered asynchronous read
         """
         while True:
@@ -66,7 +68,7 @@ class AsyncFile (AsyncStream):
     # Write                                                                    #
     #--------------------------------------------------------------------------#
     @Async
-    def WriteRaw (self, data, cancel = None):
+    def Write (self, data, cancel = None):
         """Unbuffered asynchronous write
         """
         while True:
@@ -84,12 +86,38 @@ class AsyncFile (AsyncStream):
     #--------------------------------------------------------------------------#
     # Dispose                                                                  #
     #--------------------------------------------------------------------------#
-    def DisposeRaw (self):
+    @Async
+    def Dispose (self):
         """Dispose file
         """
-        self.core.Poll (self.fd, None) # resolve with BrokenPipeError
-        if self.closefd:
-            os.close (self.fd)
+        if self.disposed:
+            return
+
+        try:
+            yield Stream.Dispose (self)
+        finally:
+            fd, self.fd = self.fd, -1
+            self.core.Poll (fd, None) # resolve with BrokenPipeError
+            if self.closefd:
+                os.close (fd)
+
+        AsyncReturn (fd)
+
+    #--------------------------------------------------------------------------#
+    # Detach                                                                   #
+    #--------------------------------------------------------------------------#
+    def Detach (self):
+        """Detach descriptor
+
+        Put the stream into closed state without actually closing the underlying
+        file descriptor. The file descriptor is returned, and can be reused for
+        other purposes.
+        """
+        if self.disposed:
+            return RaisedFuture (ValueError ('Stream has been disposed'))
+
+        self.closefd = False
+        return self.Dispose ()
 
     #--------------------------------------------------------------------------#
     # Options                                                                  #
@@ -107,6 +135,15 @@ class AsyncFile (AsyncStream):
         If enable is not set, returns current "close on exec" value.
         """
         return CloseOnExecFD (self.fd, enable)
+
+#------------------------------------------------------------------------------#
+# Buffered File                                                                #
+#------------------------------------------------------------------------------#
+class BufferedFile (BufferedStream):
+    """Buffered asynchronous file
+    """
+    def __init__ (self, fd, buffer_size = None, closefd = None, core = None):
+        BufferedStream.__init__ (self, File (fd, closefd, core), buffer_size)
 
 #------------------------------------------------------------------------------#
 # File Options                                                                 #
