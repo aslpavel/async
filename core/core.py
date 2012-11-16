@@ -7,7 +7,7 @@ from heapq import heappush, heappop
 
 from .poller import Poller
 from .error import ConnectionError, BrokenPipeError
-from ..future import FutureSource, FutureCanceled, RaisedFuture
+from ..future import FutureSource, FutureCanceled, RaisedFuture, SucceededFuture
 
 __all__ = ('Core', 'CoreError', 'CoreStopped',)
 #------------------------------------------------------------------------------#
@@ -34,7 +34,7 @@ class Core (object):
     instance      = None
 
     def __init__ (self, poller_name = None):
-        self.timer  = Timer (self)
+        self.timer  = TimeAwaiter (self)
         self.files  = {}
         self.poller = Poller.FromName (poller_name)
 
@@ -111,7 +111,7 @@ class Core (object):
 
         file = self.files.get (fd)
         if file is None:
-            file = File (fd, self)
+            file = FileAwaiter (fd, self)
             self.files [fd] = file
 
         return file.Await (mask, cancel)
@@ -160,9 +160,7 @@ class Core (object):
 
             # files
             for fd, event in self.poller.Poll (when):
-                file = self.files.get (fd)
-                if file:
-                    file.Resolve (event)
+                self.files [fd].Resolve (event)
 
     #--------------------------------------------------------------------------#
     # Disposable                                                               #
@@ -180,7 +178,7 @@ class Core (object):
 
         # files
         files, self.files = self.files, {}
-        for file in self.files.values ():
+        for file in files.values ():
             file.Dispose (error)
 
     def __enter__ (self):
@@ -193,7 +191,7 @@ class Core (object):
 #------------------------------------------------------------------------------#
 # Timer                                                                        #
 #------------------------------------------------------------------------------#
-class Timer (object):
+class TimeAwaiter (object):
     """Timer awaiter
     """
     __slots__ = ('index', 'queue',)
@@ -270,7 +268,7 @@ class Timer (object):
 #------------------------------------------------------------------------------#
 # File                                                                         #
 #------------------------------------------------------------------------------#
-class File (object):
+class FileAwaiter (object):
     """File awaiter
     """
     __slots__ = ('fd', 'mask', 'entries', 'core',)
@@ -291,9 +289,11 @@ class File (object):
         """
         if mask is None:
             self.Dispose (BrokenPipeError (errno.EPIPE, 'Detached from core'))
-            return
+            return SucceededFuture (None)
+        elif not mask:
+            return RaisedFuture (ValueError ('Awaited mask cannot be empty'))
         elif mask & self.mask:
-            return RaisedFuture (CoreError ('File is already being awaited: fd={}'.format (mask)))
+            return RaisedFuture (ValueError ('File is already being awaited: fd={}'.format (mask)))
 
         # source
         source = FutureSource ()
@@ -332,11 +332,9 @@ class File (object):
     # Private                                                                  #
     #--------------------------------------------------------------------------#
     def dispatch (self, event):
-        """Pop sources effected by specified event mask
+        """Dispatch sources effected by specified event mask
         """
         entries, effected = [], []
-        if not event:
-            return effected
 
         # find effected
         for mask, source in self.entries:
@@ -349,11 +347,10 @@ class File (object):
         self.mask &= ~event
         self.entries = entries
 
-        if effected:
-            if self.mask:
-                self.core.poller.Modify (self.fd, self.mask)
-            else:
-                self.core.poller.Unregister (self.fd)
+        if self.mask:
+            self.core.poller.Modify (self.fd, self.mask)
+        else:
+            self.core.poller.Unregister (self.fd)
 
         return effected
 
@@ -366,7 +363,7 @@ class File (object):
             events.append ('write')
         if self.mask & Poller.ERROR:
             events.append ('error')
-        return '<File fd:{} events:{}>'.format (self.fd, ','.join (events))
+        return '<FileAwaiter [fd:{} events:{}] at {}>'.format (self.fd, ','.join (events), id (self))
 
     #--------------------------------------------------------------------------#
     # Disposable                                                               #

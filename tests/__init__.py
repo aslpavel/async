@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import functools
+
 from .. import Core, Async
 
 __all__ = ('AsyncTest',)
@@ -25,9 +27,7 @@ def AsyncTest (test):
             # restore core
             core.InstanceSet (core_saved)
 
-    test_async.__name__ = test.__name__
-    test_async.__doc__  = test.__doc__
-    return test_async
+    return functools.update_wrapper (test_async, test)
 
 #------------------------------------------------------------------------------#
 # Load Test Protocol                                                           #

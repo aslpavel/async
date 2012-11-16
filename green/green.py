@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import sys
+import functools
 import greenlet
 
 from ..future.source import FutureSource
@@ -37,9 +38,7 @@ def GreenAsync (function):
         continuation (None, None)
         return source.Future
 
-    green_async.__name__ = function.__name__
-    green_async.__doc__  = function.__doc__
-    return green_async
+    return functools.update_wrapper (green_async, function)
 
 #------------------------------------------------------------------------------#
 # Await                                                                        #

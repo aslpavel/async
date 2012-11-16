@@ -174,9 +174,7 @@ class BufferedStream (Stream):
         try:
             yield Stream.Dispose (self)
         finally:
-            base, self.base = self.base, None
-            if base:
-                base.Dispose ()
+            self.base.Dispose ()
 
     #--------------------------------------------------------------------------#
     # Read|Write Tuple                                                         #

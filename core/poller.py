@@ -90,8 +90,7 @@ class Poller (object):
 #------------------------------------------------------------------------------#
 class EPollPoller (Poller):
     def __init__ (self):
-        self.fds   = set ()
-
+        self.fds   = {}
         self.epoll = select.epoll ()
 
         from ..stream.file import CloseOnExecFD
@@ -109,14 +108,14 @@ class EPollPoller (Poller):
 
     def Register (self, fd, mask):
         self.epoll.register (fd, mask)
-        self.fds.add (fd)
+        self.fds.setdefault (fd, True)
 
     def Modify (self, fd, mask):
         self.epoll.modify (fd, mask)
 
     def Unregister (self, fd):
-        self.fds.discard (fd)
-        self.epoll.unregister (fd)
+        if self.fds.pop (fd, None):
+            self.epoll.unregister (fd)
 
     def Poll (self, timeout):
         try:

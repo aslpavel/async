@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import sys
 import inspect
+import functools
 
 from .future.future import Future, SucceededFuture, FailedFuture
 from .future.source import FutureSource
@@ -39,10 +40,9 @@ def Async (function):
                     future = (generator.send  (result) if error is None else
                               generator.throw (*error))
 
-                    if not isinstance (future, Future):
-                        raise TypeError ('Generator yielded not a Future object: {}'.format (future))
+                    assert isinstance (future, Future), 'Not a future: {}'.format (future)
 
-                    elif future.IsCompleted ():
+                    if future.IsCompleted ():
                         # avoid recursion
                         error  = future.Error ()
                         if error is None:
@@ -59,12 +59,12 @@ def Async (function):
             except Exception:
                 source.ErrorSet (sys.exc_info ())
 
+            generator.close ()
+
         continuation (None, None)
         return source.Future
 
-    generator_async.__name__ = function.__name__
-    generator_async.__doc__  = function.__doc__
-    return generator_async
+    return functools.update_wrapper (generator_async, function)
 
 #------------------------------------------------------------------------------#
 # Dummy Asynchronous Function                                                  #
@@ -80,8 +80,6 @@ def DummyAsync (function):
         except Exception:
             return FailedFuture (sys.exc_info ())
 
-    dummy_async.__name__ = function.__name__
-    dummy_async.__doc__  = function.__doc__
-    return dummy_async
+    return functools.update_wrapper (dummy_async, function)
 
 # vim: nu ft=python columns=120 :

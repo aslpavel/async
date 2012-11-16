@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import sys
+import functools
 from collections import deque
 
 from .async  import Async
@@ -42,9 +43,7 @@ def LimitAsync (limit):
 
             return source.Future
 
-        async_limit.__name__ = async.__name__
-        async_limit.__doc__  = async.__doc__
-        return async_limit
+        return functools.update_wrapper (async_limit, async)
 
     return decorator
 

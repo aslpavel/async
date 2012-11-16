@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import functools
+
 from .delegate import DelegatedFuture
 from ..async import Async
 
@@ -33,8 +35,6 @@ def ProgressAsync (function):
         progress.Future = ProgressFuture (async (*args, **keys))
         return progress
 
-    progress_async.__name__ = function.__name__
-    progress_async.__doc__  = function.__doc__
-    return progress_async
+    return functools.update_wrapper (progress_async, function)
 
 # vim: nu ft=python columns=120 :
