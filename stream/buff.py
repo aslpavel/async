@@ -6,42 +6,29 @@ __all__ = ('Buffer',)
 # Buffer                                                                       #
 #------------------------------------------------------------------------------#
 class Buffer (object):
-    """Data buffer
+    """Bytes FIFO buffer
 
     Used by asynchronous stream.
     """
-    def __init__ (self, data = None):
+    def __init__ (self):
         self.offset = 0
         self.chunks = deque ()
         self.chunks_size = 0
 
-        if data:
-            self.Put (data)
-
     #--------------------------------------------------------------------------#
-    # Methods                                                                  #
+    # Slice                                                                    #
     #--------------------------------------------------------------------------#
-    def Put (self, data):
-        """Put data to buffer
+    def Slice (self, size = None, offset = None):
+        """Get bytes with "offset" and "size"
         """
-        if data:
-            self.chunks.append (data)
-            self.chunks_size += len (data)
+        offset = offset or 0
+        size = size or self.Length ()
 
-    def Pop (self, size):
-        """Pop data from buffer
-        """
-        data = self.Peek (size)
-        self.Discard (size)
-        return data
-
-    def Peek (self, size):
-        """Peek "size" bytes for buffer
-        """
         data = []
         data_size = 0
 
-        size += self.offset
+        # dequeue chunks
+        size += self.offset + offset
         while self.chunks:
             if data_size >= size:
                 break
@@ -49,57 +36,82 @@ class Buffer (object):
             data.append (chunk)
             data_size += len (chunk)
 
+        # re-queue merged chunk
         data = b''.join (data)
         self.chunks.appendleft (data)
 
-        return data [self.offset:size]
+        return data [self.offset + offset:size]
 
-    def Discard (self, size = None):
-        """Discard "size" bytes from buffer
+    #--------------------------------------------------------------------------#
+    # Enqueue                                                                  #
+    #--------------------------------------------------------------------------#
+    def Enqueue (self, data):
+        """Enqueue "data" to buffer
         """
-        if size is None:
-            self.offset = 0
-            self.chunks_size = 0
-            self.chunks.clear ()
-            return
+        if data:
+            self.chunks.append (data)
+            self.chunks_size += len (data)
 
+    #--------------------------------------------------------------------------#
+    # Dequeue                                                                  #
+    #--------------------------------------------------------------------------#
+    def Dequeue (self, size = None, returns = None):
+        """Dequeue "size" bytes from buffer
+
+        Returns dequeued data if returns if True (or not set) otherwise None.
+        """
+        size = size or self.Length ()
         if not self.chunks:
-            return
+            return b''
 
-        # discard whole chunks
-        chunks_size = 0
+        data = []
+        data_size = 0
+
+        # dequeue chunks
         size = min (size + self.offset, self.chunks_size)
         while self.chunks:
-            if chunks_size > size:
+            if data_size >= size:
                 break
             chunk = self.chunks.popleft ()
-            chunks_size += len (chunk)
-        self.chunks_size -= chunks_size
+            data.append (chunk)
+            data_size += len (chunk)
 
-        # cut chunk if needed
-        offset = len (chunk) - (chunks_size - size)
-        if offset << 1 > len (chunk):
-            chunk = chunk [offset:]
-            self.offset = 0
+        if data_size == size:
+            # no chunk re-queue
+            self.chunks_size -= data_size
+            offset, self.offset = self.offset, 0
         else:
-            self.offset = offset
+            # cut chunk if offset > chunk.length / 2
+            offset = len (chunk) - (data_size - size)
+            if offset << 1 > len (chunk):
+                chunk = chunk [offset:]
+                offset, self.offset = self.offset, 0
+            else:
+                offset, self.offset = self.offset, offset
 
-        # re-queue chunk
-        if chunk:
+            # re-queue chunk
             self.chunks.appendleft (chunk)
-            self.chunks_size += len (chunk)
+            self.chunks_size += len (chunk) - data_size
 
-    def __len__ (self): return self.Length ()
+        if returns is None or returns:
+            return b''.join (data) [offset:size]
+
+    #--------------------------------------------------------------------------#
+    # Length                                                                   #
+    #--------------------------------------------------------------------------#
     def Length  (self):
         """Length of the buffer
         """
         return self.chunks_size - self.offset
+    __len__ = Length
 
+    #--------------------------------------------------------------------------#
+    # Empty?                                                                   #
+    #--------------------------------------------------------------------------#
     def __bool__ (self):
-        """Is buffer not empty?
+        """Buffer is not empty
         """
-        return bool (self.chunks_size)
+        return bool (self.chunks)
     __nonzero__ = __bool__
-
 
 # vim: nu ft=python columns=120 :

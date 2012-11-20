@@ -57,9 +57,9 @@ class BufferedStream (Stream):
 
         buffer = self.read_buffer
         if not buffer:
-            buffer.Put ((yield self.base.Read (self.buffer_size, cancel)))
+            buffer.Enqueue ((yield self.base.Read (self.buffer_size, cancel)))
 
-        AsyncReturn (buffer.Pop (size))
+        AsyncReturn (buffer.Dequeue (size))
 
     @Async
     def ReadUntilSize (self, size, cancel = None):
@@ -69,10 +69,10 @@ class BufferedStream (Stream):
             AsyncReturn (b'')
 
         buffer = self.read_buffer
-        while len (buffer) < size:
-            buffer.Put ((yield self.base.Read (self.buffer_size, cancel)))
+        while buffer.Length () < size:
+            buffer.Enqueue ((yield self.base.Read (self.buffer_size, cancel)))
 
-        AsyncReturn (buffer.Pop (size))
+        AsyncReturn (buffer.Dequeue (size))
 
     @Async
     def ReadUntilEof (self, cancel = None):
@@ -81,10 +81,10 @@ class BufferedStream (Stream):
         buffer = self.read_buffer
         try:
             while True:
-                buffer.Put ((yield self.base.Read (self.buffer_size, cancel)))
+                buffer.Enqueue ((yield self.base.Read (self.buffer_size, cancel)))
         except BrokenPipeError: pass
 
-        AsyncReturn (buffer.Pop (len (buffer)))
+        AsyncReturn (buffer.Dequeue (buffer.Length ()))
 
     @Async
     def ReadUntilSub (self, sub = None, cancel = None):
@@ -98,15 +98,15 @@ class BufferedStream (Stream):
         buffer = self.read_buffer
 
         while True:
-            data = buffer.Peek (len (buffer))
+            data = buffer.Slice ()
             find_offset = data [offset:].find (sub)
             if find_offset >= 0:
                 break
 
             offset = max (0, len (data) - len (sub))
-            buffer.Put ((yield self.base.Read (self.buffer_size, cancel)))
+            buffer.Enqueue ((yield self.base.Read (self.buffer_size, cancel)))
 
-        AsyncReturn (buffer.Pop (offset + find_offset + len (sub)))
+        AsyncReturn (buffer.Dequeue (offset + find_offset + len (sub)))
 
     @Async
     def ReadUntilRegex (self, regex, cancel = None):
@@ -117,14 +117,14 @@ class BufferedStream (Stream):
 
         buffer = self.read_buffer
         while True:
-            data = buffer.Peek (len (buffer))
+            data = buffer.Slice ()
             match = regex.search (data)
             if match:
                 break
 
-            buffer.Put ((yield self.base.Read (self.buffer_size, cancel)))
+            buffer.Enqueue ((yield self.base.Read (self.buffer_size, cancel)))
 
-        AsyncReturn ((buffer.Pop (match.end ()), match))
+        AsyncReturn ((buffer.Dequeue (match.end ()), match))
 
     #--------------------------------------------------------------------------#
     # Write                                                                    #
@@ -133,8 +133,8 @@ class BufferedStream (Stream):
         """Write Bytes to file without blocking
         """
         buffer = self.write_buffer
-        buffer.Put (data)
-        if len (buffer) >= self.buffer_size:
+        buffer.Enqueue (data)
+        if buffer.Length () >= self.buffer_size:
             self.Flush ()
 
     #--------------------------------------------------------------------------#
@@ -154,7 +154,7 @@ class BufferedStream (Stream):
         try:
             buffer = self.write_buffer
             while buffer:
-                buffer.Discard ((yield self.base.Write (buffer.Peek (self.buffer_size))))
+                buffer.Dequeue ((yield self.base.Write (buffer.Slice (self.buffer_size))), False)
 
             yield self.base.Flush ()
 
@@ -189,23 +189,23 @@ class BufferedStream (Stream):
         tup_struct_size = self.tup_struct.size
 
         # count
-        while len (buffer) < tup_struct_size:
-            buffer.Put ((yield self.base.Read (self.buffer_size, cancel)))
-        count = self.tup_struct.unpack (buffer.Pop (tup_struct_size)) [0]
+        while buffer.Length () < tup_struct_size:
+            buffer.Enqueue ((yield self.base.Read (self.buffer_size, cancel)))
+        count = self.tup_struct.unpack (buffer.Dequeue (tup_struct_size)) [0]
 
         # sizes
-        while len (buffer) < tup_struct_size * count:
-            buffer.Put ((yield self.base.Read (self.buffer_size, cancel)))
+        while buffer.Length () < tup_struct_size * count:
+            buffer.Enqueue ((yield self.base.Read (self.buffer_size, cancel)))
         size  = 0
         sizes = []
         for _ in range (count):
-            sizes.append (self.tup_struct.unpack (buffer.Pop (tup_struct_size)) [0])
+            sizes.append (self.tup_struct.unpack (buffer.Dequeue (tup_struct_size)) [0])
             size += sizes [-1]
 
         # chunks
-        while len (buffer) < size:
-            buffer.Put ((yield self.base.Read (self.buffer_size, cancel)))
-        AsyncReturn (tuple (buffer.Pop (size) for size in sizes))
+        while buffer.Length () < size:
+            buffer.Enqueue ((yield self.base.Read (self.buffer_size, cancel)))
+        AsyncReturn (tuple (buffer.Dequeue (size) for size in sizes))
 
     def WriteTuple (self, tup):
         """Write Tuple<Bytes> to file without blocking
