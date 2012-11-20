@@ -51,7 +51,7 @@ class SocketSSL (Socket):
                         raise BrokenPipeError (error.errno, error.strerror)
                     raise
 
-            yield self.core.Poll (self.fd, self.core.READ, cancel)
+            yield self.core.WhenFile (self.fd, self.core.READ, cancel)
 
     #--------------------------------------------------------------------------#
     # Write                                                                    #
@@ -74,7 +74,7 @@ class SocketSSL (Socket):
                         raise BrokenPipeError (error.errno, error.strerror)
                     raise
 
-            yield self.core.Poll (self.fd, self.core.WRITE, cancel)
+            yield self.core.WhenFile (self.fd, self.core.WRITE, cancel)
 
     #--------------------------------------------------------------------------#
     # Connect                                                                  #
@@ -103,7 +103,7 @@ class SocketSSL (Socket):
                 else:
                     raise
 
-            yield self.core.Poll (self.fd, event, cancel)
+            yield self.core.WhenFile (self.fd, event, cancel)
 
     #--------------------------------------------------------------------------#
     # Accept                                                                   #
@@ -132,7 +132,7 @@ class SocketSSL (Socket):
                 if error.errno not in BlockingErrorSet:
                     raise
 
-            yield self.core.Poll (self.fd, self.core.READ, cancel)
+            yield self.core.WhenFile (self.fd, self.core.READ, cancel)
 
 #------------------------------------------------------------------------------#
 # Buffered SSL Socket                                                          #

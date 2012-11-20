@@ -63,16 +63,9 @@ class Core (object):
         return instance
 
     #--------------------------------------------------------------------------#
-    # Sleep                                                                    #
+    # Time                                                                     #
     #--------------------------------------------------------------------------#
-    def Sleep (self, delay, cancel = None):
-        """Resolved after specified delay in seconds
-
-        Result of the future is scheduled time.
-        """
-        return self.timer.Await (time () + delay, cancel)
-
-    def SleepUntil (self, resume, cancel = None):
+    def WhenTime (self, resume, cancel = None):
         """Resolved when specified unix time is reached
 
         Result of the future is scheduled time or FutureCanceled if it was
@@ -80,15 +73,22 @@ class Core (object):
         """
         return self.timer.Await (resume, cancel)
 
+    def WhenTimeDelay (self, delay, cancel = None):
+        """Resolved after specified delay in seconds
+
+        Result of the future is scheduled time.
+        """
+        return self.timer.Await (time () + delay, cancel)
+
     #--------------------------------------------------------------------------#
     # Idle                                                                     #
     #--------------------------------------------------------------------------#
-    def Idle (self, cancel = None):
+    def WhenIdle (self, cancel = None):
         """Resolved when new iteration loop is started.
 
         Result of the future is None of FutureCanceled if it was canceled.
         """
-        return self.SleepUntil (0, cancel)
+        return self.WhenTime (0, cancel)
 
     #--------------------------------------------------------------------------#
     # Poll                                                                     #
@@ -99,7 +99,7 @@ class Core (object):
     DISCONNECT = Poller.DISCONNECT
     ERROR      = Poller.ERROR
 
-    def Poll (self, fd, mask, cancel = None):
+    def WhenFile (self, fd, mask, cancel = None):
         """Poll file descriptor
 
         Poll file descriptor for events specified by mask. If mask is None then
