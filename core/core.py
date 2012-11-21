@@ -9,18 +9,7 @@ from .poller import Poller
 from .error import ConnectionError, BrokenPipeError
 from ..future import FutureSource, FutureCanceled, RaisedFuture, SucceededFuture
 
-__all__ = ('Core', 'CoreError', 'CoreStopped',)
-#------------------------------------------------------------------------------#
-# Errors                                                                       #
-#------------------------------------------------------------------------------#
-class CoreError (Exception):
-    """In core error
-    """
-
-class CoreStopped (CoreError):
-    """Core has been stopped
-    """
-
+__all__ = ('Core',)
 #------------------------------------------------------------------------------#
 # Core                                                                         #
 #------------------------------------------------------------------------------#
@@ -111,7 +100,7 @@ class Core (object):
 
         file = self.files.get (fd)
         if file is None:
-            file = FileAwaiter (fd, self)
+            file = FileAwaiter (fd, self.poller)
             self.files [fd] = file
 
         return file.Await (mask, cancel)
@@ -136,7 +125,7 @@ class Core (object):
                     if not self.executing:
                         break
             finally:
-                self.Dispose (CoreError ('Core has terminated without resolving this future'))
+                self.Dispose ()
 
     def __iter__ (self): return self.Iterator ()
     def Iterator (self, block = True):
@@ -169,9 +158,10 @@ class Core (object):
         """Dispose core
 
         If there is any unresolved asynchronous operations, they are resolved
-        either resolved with error (optional argument) or CoreStopped exception.
+        either resolved with error (optional argument) or FutureCanceled exception.
         """
         self.executing = False
+        error = error or FutureCanceled ('Core has been stopped')
 
         # timer
         self.timer.Dispose (error)
@@ -233,11 +223,11 @@ class TimeAwaiter (object):
             heappop (self.queue)
             effected.append ((source, when))
 
-        # resolve
+        # resolve effected sources
         for source, when in effected:
             source.ResultSet (when)
 
-        # when
+        # when next source is scheduled
         while self.queue:
             when, index, source = self.queue [0]
             if not source.Future.IsCompleted ():
@@ -252,7 +242,7 @@ class TimeAwaiter (object):
     def Dispose (self, error = None):
         """Dispose timer and resolve all pending events with specified error
         """
-        error = error or CoreStopped ()
+        error = error or FutureCanceled ('Time awaiter has been disposed')
 
         queue, self.queue = self.queue, []
         for when, index, source in queue:
@@ -271,14 +261,14 @@ class TimeAwaiter (object):
 class FileAwaiter (object):
     """File awaiter
     """
-    __slots__ = ('fd', 'mask', 'entries', 'core',)
+    __slots__ = ('fd', 'poller', 'mask', 'entries',)
 
-    def __init__ (self, fd, core):
-        self.fd   = fd
-        self.core = core
+    def __init__ (self, fd, poller):
+        self.fd = fd
+        self.poller = poller
 
         # state
-        self.mask    = 0
+        self.mask = 0
         self.entries = []
 
     #--------------------------------------------------------------------------#
@@ -291,9 +281,9 @@ class FileAwaiter (object):
             self.Dispose (BrokenPipeError (errno.EPIPE, 'Detached from core'))
             return SucceededFuture (None)
         elif not mask:
-            return RaisedFuture (ValueError ('Awaited mask cannot be empty'))
+            return RaisedFuture (ValueError ('Empty event mask'))
         elif mask & self.mask:
-            return RaisedFuture (ValueError ('File is already being awaited: fd={}'.format (mask)))
+            return RaisedFuture (ValueError ('Intersecting event mask: {}'.format (self)))
 
         # source
         source = FutureSource ()
@@ -302,9 +292,9 @@ class FileAwaiter (object):
 
         # register
         if self.mask:
-            self.core.poller.Modify (self.fd, self.mask | mask)
+            self.poller.Modify (self.fd, self.mask | mask)
         else:
-            self.core.poller.Register (self.fd, mask)
+            self.poller.Register (self.fd, mask)
 
         # update state
         self.mask |= mask
@@ -348,22 +338,22 @@ class FileAwaiter (object):
         self.entries = entries
 
         if self.mask:
-            self.core.poller.Modify (self.fd, self.mask)
+            self.poller.Modify (self.fd, self.mask)
         else:
-            self.core.poller.Unregister (self.fd)
+            self.poller.Unregister (self.fd)
 
         return effected
 
-    def __repr__ (self): return self.__str__ ()
     def __str__  (self):
+        """String representation
+        """
         events = []
-        if self.mask & Poller.READ:
-            events.append ('read')
-        if self.mask & Poller.WRITE:
-            events.append ('write')
-        if self.mask & Poller.ERROR:
-            events.append ('error')
+        if self.mask & Poller.READ:  events.append ('read')
+        if self.mask & Poller.WRITE: events.append ('write')
+        if self.mask & Poller.ERROR: events.append ('error')
         return '<FileAwaiter [fd:{} events:{}] at {}>'.format (self.fd, ','.join (events), id (self))
+
+    __rerp__ = __str__
 
     #--------------------------------------------------------------------------#
     # Disposable                                                               #
@@ -371,7 +361,7 @@ class FileAwaiter (object):
     def Dispose (self, error = None):
         """Dispose file and resolve all pending events with specified error
         """
-        error = error or CoreStopped ()
+        error = error or FutureCanceled ('File awaiter has been disposed')
 
         for source in self.dispatch (self.mask):
             source.ErrorRaise (error)
