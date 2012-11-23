@@ -2,7 +2,7 @@
 import os
 
 from .file import BufferedFile
-from ..async import Async
+from ..async import Async, AsyncReturn
 from ..future import Future
 
 __all__ = ('Pipe',)
@@ -27,6 +27,9 @@ class Pipe (object):
             if fds [1] is not None:
                 self.write = BufferedFile (fds [1], buffer_size, False, core)
 
+    #--------------------------------------------------------------------------#
+    # Properties                                                               #
+    #--------------------------------------------------------------------------#
     @property
     def Read (self):
         """Readable side of the pipe
@@ -38,6 +41,55 @@ class Pipe (object):
         """Writable side of the pipe
         """
         return self.write
+
+    #--------------------------------------------------------------------------#
+    # Detach                                                                   #
+    #--------------------------------------------------------------------------#
+    @Async
+    def DetachRead (self, fd = None, blocking = None):
+        """Detach read and close write descriptors
+        """
+        if self.read is None:
+            raise ValueError ('Has already been detached')
+
+        # options
+        self.read.Blocking (blocking is None or blocking)
+
+        # detach
+        stream_fd = yield self.read.Detach ()
+        self.Dispose ()
+
+        # duplicate if needed
+        if fd is None or fd == stream_fd:
+            AsyncReturn (stream_fd)
+
+        else:
+            os.dup2 (stream_fd, fd)
+            os.close (stream_fd)
+            AsyncReturn (fd)
+
+    @Async
+    def DetachWrite (self, fd = None, blocking = None):
+        """Detach write and close read descriptors
+        """
+        if self.write is None:
+            raise ValueError ('Has already been detached')
+
+        # options
+        self.write.Blocking (blocking is None or blocking)
+
+        # detach
+        stream_fd = yield self.write.Detach ()
+        self.Dispose ()
+
+        # duplicate if needed
+        if fd is None or fd == stream_fd:
+            AsyncReturn (stream_fd)
+
+        else:
+            os.dup2 (stream_fd, fd)
+            os.close (stream_fd)
+            AsyncReturn (fd)
 
     #--------------------------------------------------------------------------#
     # Disposable                                                               #

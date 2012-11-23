@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
-import errno
 import threading
-import itertools
 from time import time
-from heapq import heappush, heappop
 
 from .poller import Poller
-from .error import ConnectionError, BrokenPipeError
-from ..future import FutureSource, FutureCanceled, RaisedFuture, SucceededFuture
+from .notifier import Notifier
+from .await_file import FileAwaiter
+from .await_time import TimeAwaiter
+from .await_context import ContextAwaiter
+from ..future import FutureCanceled
 
 __all__ = ('Core',)
 #------------------------------------------------------------------------------#
@@ -18,16 +18,24 @@ class Core (object):
 
     Asynchronous I/O and Timer dispatcher. Executes until all requested
     asynchronous operation are completed or when object itself is disposed.
+    All interaction with the Core must be done from that Core's thread,
+    exception are WhenContext() and Notify().
     """
     instance_lock = threading.Lock ()
     instance      = None
 
     def __init__ (self, poller_name = None):
-        self.timer  = TimeAwaiter (self)
-        self.files  = {}
         self.poller = Poller.FromName (poller_name)
-
         self.executing = False
+        self.thread_ident = None
+
+        # await objects
+        self.timer = TimeAwaiter ()
+        self.context = ContextAwaiter (self)
+        self.files = {}
+
+        # notifier
+        self.notifier = Notifier (self)
 
     #--------------------------------------------------------------------------#
     # Instance                                                                 #
@@ -73,11 +81,22 @@ class Core (object):
     # Idle                                                                     #
     #--------------------------------------------------------------------------#
     def WhenIdle (self, cancel = None):
-        """Resolved when new iteration loop is started.
+        """Resolved when new iteration is started.
 
         Result of the future is None of FutureCanceled if it was canceled.
         """
         return self.WhenTime (0, cancel)
+
+    #--------------------------------------------------------------------------#
+    # Context                                                                  #
+    #--------------------------------------------------------------------------#
+    def WhenContext (self):
+        """Resolved inside core thread
+
+        It is safe to call this method from any thread at any time. WhenContext()
+        may be used to transfer control from other threads to the Core's thread.
+        """
+        return self.context.Await ()
 
     #--------------------------------------------------------------------------#
     # Poll                                                                     #
@@ -106,6 +125,15 @@ class Core (object):
         return file.Await (mask, cancel)
 
     #--------------------------------------------------------------------------#
+    # Notify                                                                   #
+    #--------------------------------------------------------------------------#
+    def Notify (self):
+        """Notify core that it must be waken
+        """
+        if self.thread_ident != threading.get_ident ():
+            self.notifier ()
+
+    #--------------------------------------------------------------------------#
     # Execute                                                                  #
     #--------------------------------------------------------------------------#
     @property
@@ -131,25 +159,35 @@ class Core (object):
     def Iterator (self, block = True):
         """Make single iteration inside core's execution loop
         """
-        while True:
-            # timer
-            when = self.timer.Resolve (time ())
-            if not block:
-                when = 0
+        topmost = False
+        try:
+            # Thread identity is used by Notify to make sure call to notifier is
+            # really needed. And it also used to make sure core is iterating only
+            # on one thread.
+            if self.thread_ident is None:
+                topmost = True
+                self.thread_ident = threading.get_ident ()
+            elif self.thread_ident != threading.get_ident ():
+                raise ValueError ('Core is already being run on a different thread')
 
-            # interrupt to check completed futures
-            yield
+            events = tuple ()
+            while True:
+                # resolve await objects
+                for fd, event in events:
+                    self.files [fd].Resolve (event)
+                self.context.Resolve ()
+                self.timer.Resolve ()
 
-            # avoid blocking
-            if when is None:
-                if self.poller.IsEmpty ():
-                    return
-            else:
-                when = max (0, when - time ())
+                # Yield control to check conditions before blocking (Execution
+                # or desired future has been resolved). If there is no file
+                # descriptors registered and timeout is negative poller will raise
+                # StopIteration and break this loop.
+                yield
+                events = self.poller.Poll (max (self.timer.Timeout (), self.context.Timeout ()))
 
-            # files
-            for fd, event in self.poller.Poll (when):
-                self.files [fd].Resolve (event)
+        finally:
+            if topmost:
+                self.thread_ident = None
 
     #--------------------------------------------------------------------------#
     # Disposable                                                               #
@@ -163,214 +201,21 @@ class Core (object):
         self.executing = False
         error = error or FutureCanceled ('Core has been stopped')
 
-        # timer
-        self.timer.Dispose (error)
+        # dispose notifier
+        self.notifier.Dispose ()
 
-        # files
+        # dispose await objects
         files, self.files = self.files, {}
         for file in files.values ():
             file.Dispose (error)
+        self.context.Dispose (error)
+        self.timer.Dispose (error)
 
     def __enter__ (self):
         return self
 
     def __exit__ (self, et, eo, tb):
         self.Dispose (eo)
-        return False
-
-#------------------------------------------------------------------------------#
-# Timer                                                                        #
-#------------------------------------------------------------------------------#
-class TimeAwaiter (object):
-    """Timer awaiter
-    """
-    __slots__ = ('index', 'queue',)
-
-    def __init__ (self, core):
-        self.index = itertools.count ()
-        self.queue = []
-
-    #--------------------------------------------------------------------------#
-    # Await                                                                    #
-    #--------------------------------------------------------------------------#
-    def Await (self, when, cancel = None):
-        """Await time specified by when argument
-        """
-        source = FutureSource ()
-        if cancel:
-            cancel.Continue (lambda *_: source.ErrorRaise (FutureCanceled ()))
-
-        heappush (self.queue, (when, next (self.index), source))
-        return source.Future
-
-    #--------------------------------------------------------------------------#
-    # Resolve                                                                  #
-    #--------------------------------------------------------------------------#
-    def Resolve (self, time):
-        """Resolve all pending event scheduled before time
-        """
-        # find effected
-        effected = []
-        while self.queue:
-            when, index, source = self.queue [0]
-            if source.Future.IsCompleted ():
-                heappop (self.queue) # future has been canceled
-                continue
-
-            if when > time:
-                break
-
-            heappop (self.queue)
-            effected.append ((source, when))
-
-        # resolve effected sources
-        for source, when in effected:
-            source.ResultSet (when)
-
-        # when next source is scheduled
-        while self.queue:
-            when, index, source = self.queue [0]
-            if not source.Future.IsCompleted ():
-                return when # future has been canceled
-
-            heappop (self.queue)
-            continue
-
-    #--------------------------------------------------------------------------#
-    # Disposable                                                               #
-    #--------------------------------------------------------------------------#
-    def Dispose (self, error = None):
-        """Dispose timer and resolve all pending events with specified error
-        """
-        error = error or FutureCanceled ('Time awaiter has been disposed')
-
-        queue, self.queue = self.queue, []
-        for when, index, source in queue:
-            source.ErrorRaise (error)
-
-    def __enter__ (self):
-        return self
-
-    def __exit__ (self, et, eo, tb):
-        self.Dispose ()
-        return False
-
-#------------------------------------------------------------------------------#
-# File                                                                         #
-#------------------------------------------------------------------------------#
-class FileAwaiter (object):
-    """File awaiter
-    """
-    __slots__ = ('fd', 'poller', 'mask', 'entries',)
-
-    def __init__ (self, fd, poller):
-        self.fd = fd
-        self.poller = poller
-
-        # state
-        self.mask = 0
-        self.entries = []
-
-    #--------------------------------------------------------------------------#
-    # Await                                                                    #
-    #--------------------------------------------------------------------------#
-    def Await (self, mask, cancel = None):
-        """Await event specified by mask argument
-        """
-        if mask is None:
-            self.Dispose (BrokenPipeError (errno.EPIPE, 'Detached from core'))
-            return SucceededFuture (None)
-        elif not mask:
-            return RaisedFuture (ValueError ('Empty event mask'))
-        elif mask & self.mask:
-            return RaisedFuture (ValueError ('Intersecting event mask: {}'.format (self)))
-
-        # source
-        source = FutureSource ()
-        if cancel:
-            cancel.Continue (lambda *_: (self.dispatch (mask), source.ErrorRaise (FutureCanceled ())))
-
-        # register
-        if self.mask:
-            self.poller.Modify (self.fd, self.mask | mask)
-        else:
-            self.poller.Register (self.fd, mask)
-
-        # update state
-        self.mask |= mask
-        self.entries.append ((mask, source))
-
-        return source.Future
-
-    #--------------------------------------------------------------------------#
-    # Resolve                                                                  #
-    #--------------------------------------------------------------------------#
-    def Resolve (self, event):
-        """Resolve pending events effected by specified event mask
-        """
-        if event & ~Poller.ERROR:
-            for source in self.dispatch (event):
-                source.ResultSet (event)
-
-        else:
-            error = BrokenPipeError (errno.EPIPE, 'Broken pipe') if event & Poller.DISCONNECT else \
-                    ConnectionError ()
-            for source in self.dispatch (self.mask):
-                source.ErrorRaise (error)
-
-    #--------------------------------------------------------------------------#
-    # Private                                                                  #
-    #--------------------------------------------------------------------------#
-    def dispatch (self, event):
-        """Dispatch sources effected by specified event mask
-        """
-        entries, effected = [], []
-
-        # find effected
-        for mask, source in self.entries:
-            if mask & event:
-                effected.append (source)
-            else:
-                entries.append ((mask, source))
-
-        # update state
-        self.mask &= ~event
-        self.entries = entries
-
-        if self.mask:
-            self.poller.Modify (self.fd, self.mask)
-        else:
-            self.poller.Unregister (self.fd)
-
-        return effected
-
-    def __str__  (self):
-        """String representation
-        """
-        events = []
-        if self.mask & Poller.READ:  events.append ('read')
-        if self.mask & Poller.WRITE: events.append ('write')
-        if self.mask & Poller.ERROR: events.append ('error')
-        return '<FileAwaiter [fd:{} events:{}] at {}>'.format (self.fd, ','.join (events), id (self))
-
-    __rerp__ = __str__
-
-    #--------------------------------------------------------------------------#
-    # Disposable                                                               #
-    #--------------------------------------------------------------------------#
-    def Dispose (self, error = None):
-        """Dispose file and resolve all pending events with specified error
-        """
-        error = error or FutureCanceled ('File awaiter has been disposed')
-
-        for source in self.dispatch (self.mask):
-            source.ErrorRaise (error)
-
-    def __enter__ (self):
-        return self
-
-    def __exit__ (self, et, eo, tb):
-        self.Dispose ()
         return False
 
 # vim: nu ft=python columns=120 :

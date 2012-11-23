@@ -103,9 +103,6 @@ class EPollPoller (Poller):
     def Name (self):
         return 'epoll'
 
-    def IsEmpty (self):
-        return not self.fds
-
     def Register (self, fd, mask):
         self.epoll.register (fd, mask)
         self.fds.setdefault (fd, True)
@@ -118,8 +115,11 @@ class EPollPoller (Poller):
             self.epoll.unregister (fd)
 
     def Poll (self, timeout):
+        if not self.fds and timeout < 0:
+            raise StopIteration () # would have blocked indefinitely
+
         try:
-            return self.epoll.poll (-1 if timeout is None else timeout)
+            return self.epoll.poll (timeout)
         except IOError as error:
             if error.errno == errno.EINTR:
                 return tuple ()
@@ -149,9 +149,6 @@ class SelectPoller (Poller):
     def Name (self):
         return 'select'
 
-    def IsEmpty (self):
-        return not self.error
-
     def Register (self, fd, mask):
         if mask | self.SUPPORTED_MASK != self.SUPPORTED_MASK:
             raise ValueError ('Unsupported event mask: {}'.format (mask))
@@ -172,7 +169,11 @@ class SelectPoller (Poller):
         self.error.discard (fd)
 
     def Poll (self, timeout):
-        read, write, error = select.select (self.read, self.write, self.error, timeout)
+        if not self.error and timeout < 0:
+            raise StopIteration () # would have blocked indefinitely
+
+        read, write, error = select.select (self.read, self.write, self.error,
+            timeout if timeout >= 0 else None)
 
         events = {}
         for fd in read:
