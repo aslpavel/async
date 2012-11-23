@@ -17,7 +17,7 @@ def AsyncTest (test):
         core_saved = Core.Instance ()
         try:
             # execute test
-            with Core.InstanceSet (Core ()) as core:
+            with Core.Instance (Core ()) as core:
                 test_future = Async (test) (*args)
                 test_future.Continue (lambda *_: core.Dispose ())
                 core.Execute ()
@@ -25,7 +25,7 @@ def AsyncTest (test):
 
         finally:
             # restore core
-            core.InstanceSet (core_saved)
+            core.Instance (core_saved)
 
     return functools.update_wrapper (test_async, test)
 

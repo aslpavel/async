@@ -41,23 +41,19 @@ class Core (object):
     # Instance                                                                 #
     #--------------------------------------------------------------------------#
     @classmethod
-    def Instance (cls):
-        """Get global core instance, creates it if it's None
+    def Instance (cls, instance = None):
+        """Global core instance, creates it if it's None
         """
         with cls.instance_lock:
-            if cls.instance is None:
-                cls.instance = Core ()
+            if instance is None:
+                if cls.instance is None:
+                    cls.instance = cls ()
+            else:
+                if instance is cls.instance:
+                    return instance
+                instance, cls.instance = cls.instance, instance
+                instance.Dispose ()
             return cls.instance
-
-    @classmethod
-    def InstanceSet (cls, instance):
-        """Set global core instance
-        """
-        with cls.instance_lock:
-            instance_prev, cls.instance = cls.instance, instance
-        if instance_prev is not None and instance_prev != instance:
-            instance_prev.Dispose ()
-        return instance
 
     #--------------------------------------------------------------------------#
     # Time                                                                     #
