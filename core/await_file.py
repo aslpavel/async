@@ -98,12 +98,11 @@ class FileAwaiter (object):
         """String representation
         """
         events = []
-        if self.mask & Poller.READ:  events.append ('read')
-        if self.mask & Poller.WRITE: events.append ('write')
-        if self.mask & Poller.ERROR: events.append ('error')
+        self.mask & Poller.READ  and events.append ('read')
+        self.mask & Poller.WRITE and events.append ('write')
+        self.mask & Poller.ERROR and events.append ('error')
         return '<FileAwaiter [fd:{} events:{}] at {}>'.format (self.fd, ','.join (events), id (self))
-
-    __rerp__ = __str__
+    __repr__ = __str__
 
     #--------------------------------------------------------------------------#
     # Disposable                                                               #

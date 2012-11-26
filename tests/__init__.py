@@ -14,18 +14,12 @@ def AsyncTest (test):
     """
 
     def test_async (*args):
-        core_saved = Core.Instance ()
-        try:
-            # execute test
-            with Core.Instance (Core ()) as core:
-                test_future = Async (test) (*args)
-                test_future.Continue (lambda *_: core.Dispose ())
-                core.Execute ()
-            test_future.Result ()
-
-        finally:
-            # restore core
-            core.Instance (core_saved)
+        # execute test
+        with Core.Instance (Core ()) as core:
+            test_future = Async (test) (*args)
+            test_future.Continue (lambda *_: core.Dispose ())
+            core ()
+        test_future.Result ()
 
     return functools.update_wrapper (test_async, test)
 

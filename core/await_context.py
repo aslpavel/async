@@ -19,13 +19,13 @@ class ContextAwaiter (object):
     #--------------------------------------------------------------------------#
     # Await                                                                    #
     #--------------------------------------------------------------------------#
-    def Await (self):
+    def Await (self, value = None):
         """Await core context
 
         Returned future is resolved inside core context, and can only be
         continued once.
         """
-        return ContextFuture (self.schedule)
+        return ContextFuture (self.schedule, value)
 
     #--------------------------------------------------------------------------#
     # Resolve                                                                  #
@@ -37,7 +37,7 @@ class ContextAwaiter (object):
             conts, self.conts = self.conts, []
 
         for cont in conts:
-            cont (None, None)
+            cont (None) # resolve with specified value
 
     #--------------------------------------------------------------------------#
     # Timeout
@@ -73,7 +73,7 @@ class ContextAwaiter (object):
             conts, self.conts = self.conts, []
 
         for cont in conts:
-            cont (None, error)
+            cont (error) # resolve with error
 
     def __enter__ (self):
         return self
@@ -91,17 +91,17 @@ class ContextFuture (Future):
     Future can only be continue once and, once continued its schedule with
     schedule function.
     """
-    __slots__ = ('schedule', 'value', 'state',)
+    __slots__ = ('schedule','state', 'value',)
 
     STATE_NONE = 0x0
     STATE_CONT = 0x1
     STATE_DONE = 0x2
     STATE_FAIL = 0x4
 
-    def __init__ (self, schedule):
+    def __init__ (self, schedule, value):
         self.schedule = schedule
-        self.value = None
         self.state = self.STATE_NONE
+        self.value = value
 
     #--------------------------------------------------------------------------#
     # Future Interface                                                         #
@@ -113,14 +113,13 @@ class ContextFuture (Future):
             raise ValueError ('{} can not be continued twice'.format (type (self).__name__))
         self.state |= self.STATE_CONT
 
-        def callback (result, error):
+        def callback (error):
             if error is None:
-                self.value = result
                 self.state |= self.STATE_DONE
             else:
                 self.value = error
                 self.state |= self.STATE_DONE | self.STATE_FAIL
-            cont (result, error)
+            cont (self.value, error)
 
         self.schedule (callback)
         return self

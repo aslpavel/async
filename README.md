@@ -27,7 +27,7 @@ def main ():
                 process (*(yield sock.Accept ())).Traceback ('process')
 
         server ().Traceback ('server')
-        core.Execute ()
+        core ()
 
 if __name__ == '__main__':
     main ()

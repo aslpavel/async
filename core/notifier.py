@@ -43,7 +43,7 @@ class Notifier (object):
         try:
             os.write (self.write_fd, b'\x00')
         except OSError as error:
-            if error.error not in BlockingErrorSet:
+            if error.errno not in BlockingErrorSet:
                 raise
 
     #--------------------------------------------------------------------------#
