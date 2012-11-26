@@ -53,7 +53,8 @@ class Core (object):
     def Instance (cls, instance = None):
         """Global core instance
 
-        Returns current global core instance, creates it if needed.
+        If ``instance`` is provided sets current global instance to ``instance``,
+        otherwise returns current global instance, creates it if needed.
         """
         try:
             with cls.instance_lock:
@@ -106,7 +107,7 @@ class Core (object):
     #--------------------------------------------------------------------------#
     # Context                                                                  #
     #--------------------------------------------------------------------------#
-    def WhenContext (self):
+    def WhenContext (self, value = None):
         """Resolved inside core thread
 
         It is safe to call this method from any thread at any time. WhenContext()
@@ -115,7 +116,7 @@ class Core (object):
         if self.flags & self.FLAG_DISPOSED:
             return RaisedFuture (FutureCanceled ('Core is stopped'))
 
-        return self.context.Await ()
+        return self.context.Await (value)
 
     #--------------------------------------------------------------------------#
     # Poll                                                                     #
@@ -251,7 +252,7 @@ class Core (object):
         # reset global instance if needed
         with self.instance_lock:
             if self is self.instance:
-                self.instance = None
+                Core.instance = None
 
     def __enter__ (self):
         return self
