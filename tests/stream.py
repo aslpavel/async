@@ -147,15 +147,13 @@ class TestStream (Stream):
     #--------------------------------------------------------------------------#
     @Async
     def Read (self, size, cancel = None):
-        if self.disposed:
-            raise RuntimeError ('Stream has been disposed')
+        with self.reading:
+            self.rd_buffer.append (size)
+            data = yield self.rd.Await ()
+            if data is None:
+                raise BrokenPipeError ()
 
-        self.rd_buffer.append (size)
-        data = yield self.rd.Await ()
-        if data is None:
-            raise BrokenPipeError ()
-
-        AsyncReturn (data)
+            AsyncReturn (data)
 
     def ReadComplete (self, data):
         assert data is None or len (data) > 0
@@ -177,15 +175,13 @@ class TestStream (Stream):
     #--------------------------------------------------------------------------#
     @Async
     def Write (self, data, cancel = None):
-        if self.disposed:
-            raise RuntimeError ('Stream has been disposed')
+        with self.writing:
+            size = yield self.wr.Await ()
+            if size is None:
+                raise BrokenPipeError ()
 
-        size = yield self.wr.Await ()
-        if size is None:
-            raise BrokenPipeError ()
-
-        self.wr_buffer.write (data [:size])
-        AsyncReturn (min (len (data), size))
+            self.wr_buffer.write (data [:size])
+            AsyncReturn (min (len (data), size))
 
     @property
     def Written (self):

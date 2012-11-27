@@ -14,78 +14,60 @@ class Pipe (object):
     """
     def __init__ (self, fds = None, buffer_size = None, core = None):
         if fds is None:
-            read_fd, write_fd = os.pipe ()
-            self.read  = BufferedFile (read_fd, buffer_size, True, core)
-            self.write = BufferedFile (write_fd, buffer_size, True, core)
+            reader_fd, writer_fd = os.pipe ()
+            self.reader  = BufferedFile (reader_fd, buffer_size, True, core)
+            self.writer = BufferedFile (writer_fd, buffer_size, True, core)
 
         else:
-            self.read = None
+            self.reader = None
             if fds [0] is not None:
-                self.read = BufferedFile (fds [0], buffer_size, False, core)
+                self.reader = BufferedFile (fds [0], buffer_size, False, core)
 
-            self.write = None
+            self.writer = None
             if fds [1] is not None:
-                self.write = BufferedFile (fds [1], buffer_size, False, core)
+                self.writer = BufferedFile (fds [1], buffer_size, False, core)
 
     #--------------------------------------------------------------------------#
     # Properties                                                               #
     #--------------------------------------------------------------------------#
     @property
-    def Read (self):
+    def Reader (self):
         """Readable side of the pipe
         """
-        return self.read
+        return self.reader
 
     @property
-    def Write (self):
+    def Writer (self):
         """Writable side of the pipe
         """
-        return self.write
+        return self.writer
 
     #--------------------------------------------------------------------------#
     # Detach                                                                   #
     #--------------------------------------------------------------------------#
-    @Async
-    def DetachRead (self, fd = None, blocking = None):
+    def DetachReader (self, fd = None, blocking = None, cancel = None):
         """Detach read and close write descriptors
         """
-        if self.read is None:
-            raise ValueError ('Has already been detached')
+        return self.detach (self.Reader, fd, blocking, cancel)
 
-        # options
-        self.read.Blocking (blocking is None or blocking)
-
-        # detach
-        stream_fd = yield self.read.Detach ()
-        self.Dispose ()
-
-        # duplicate if needed
-        if fd is None or fd == stream_fd:
-            AsyncReturn (stream_fd)
-
-        else:
-            os.dup2 (stream_fd, fd)
-            os.close (stream_fd)
-            AsyncReturn (fd)
-
-    @Async
-    def DetachWrite (self, fd = None, blocking = None):
+    def DetachWriter (self, fd = None, blocking = None, cancel = None):
         """Detach write and close read descriptors
         """
-        if self.write is None:
-            raise ValueError ('Has already been detached')
+        return self.detach (self.Writer, fd, blocking, cancel)
 
-        # options
-        self.write.Blocking (blocking is None or blocking)
+    @Async
+    def detach (self, stream, fd = None, blocking = None, cancel = None):
+        """Detach stream and dispose the other
+        """
+        if stream is None:
+            raise ValueError ('Pipe is disposed')
 
-        # detach
-        stream_fd = yield self.write.Detach ()
-        self.Dispose ()
+        stream.Blocking (blocking is None or blocking)
+        stream_fd = yield stream.Detach (cancel)
+        yield self.Dispose (cancel)
 
-        # duplicate if needed
         if fd is None or fd == stream_fd:
             AsyncReturn (stream_fd)
-
         else:
             os.dup2 (stream_fd, fd)
             os.close (stream_fd)
@@ -95,18 +77,18 @@ class Pipe (object):
     # Disposable                                                               #
     #--------------------------------------------------------------------------#
     @Async
-    def Dispose (self):
+    def Dispose (self, cancel = None):
         """Dispose pipe
         """
         dispose = []
 
-        read, self.read = self.read, None
-        if read is not None:
-            dispose.append (read.Dispose ())
+        reader, self.reader = self.reader, None
+        if reader is not None:
+            dispose.append (reader.Dispose (cancel))
 
-        write, self.write = self.write, None
-        if write is not None:
-            dispose.append (write.Dispose ())
+        writer, self.writer = self.writer, None
+        if writer is not None:
+            dispose.append (writer.Dispose (cancel))
 
         yield Future.WhenAll (dispose)
 
@@ -120,12 +102,14 @@ class Pipe (object):
     #--------------------------------------------------------------------------#
     # Representation                                                           #
     #--------------------------------------------------------------------------#
-    def __repr__ (self):
+    def __str__ (self):
         """Pipe string representation
         """
-        return '<Pipe [read:{} write:{}] at {}>'.format (
-            self.read and self.read.Fd,
-            self.write and self.write.Fd,
-            id (self))
+        return '<Pipe [reader:{} writer:{}] at {}>'.format (self.reader, self.writer, id (self))
+
+    def __rerp__ (self):
+        """Pipe string representation
+        """
+        return str (self)
 
 # vim: nu ft=python columns=120 :
