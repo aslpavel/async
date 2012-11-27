@@ -3,6 +3,7 @@ import socket
 import errno
 
 from .file import File
+from .stream import StreamContext
 from .stream_buff import BufferedStream
 from ..async import Async, AsyncReturn
 from ..core.error import BrokenPipeError, BlockingErrorSet, PipeErrorSet
@@ -17,6 +18,11 @@ class Socket (File):
 
     def __init__ (self, sock, core = None):
         self.sock = sock
+
+        self.connecting = StreamContext ('connecting', self.FLAG_CONNECTING,
+            self.FLAG_DISPOSING | self.FLAG_DISPOSED)
+        self.accepting = StreamContext ('accepting', self.FLAG_ACCEPTING,
+            self.FLAG_DISPOSING | self.FLAG_DISPOSED)
 
         File.__init__ (self, sock.fileno (), False, core)
 
@@ -36,20 +42,21 @@ class Socket (File):
     def Read (self, size, cancel = None):
         """Unbuffered asynchronous read
         """
-        while True:
-            try:
-                data = self.sock.recv (size)
-                if size and not data:
-                    raise BrokenPipeError (errno.EPIPE, 'Broken pipe')
-                AsyncReturn (data)
+        with self.reading:
+            while True:
+                try:
+                    data = self.sock.recv (size)
+                    if size and not data:
+                        raise BrokenPipeError (errno.EPIPE, 'Broken pipe')
+                    AsyncReturn (data)
 
-            except socket.error as error:
-                if error.errno not in BlockingErrorSet:
-                    if error.errno in PipeErrorSet:
-                        raise BrokenPipeError (error.errno, error.strerror)
-                    raise
+                except socket.error as error:
+                    if error.errno not in BlockingErrorSet:
+                        if error.errno in PipeErrorSet:
+                            raise BrokenPipeError (error.errno, error.strerror)
+                        raise
 
-            yield self.core.WhenFile (self.fd, self.core.READ, cancel)
+                yield self.core.WhenFile (self.fd, self.core.READ, cancel)
 
     #--------------------------------------------------------------------------#
     # Write                                                                    #
@@ -58,17 +65,18 @@ class Socket (File):
     def Write (self, data, cancel = None):
         """Unbuffered asynchronous write
         """
-        while True:
-            try:
-                AsyncReturn (self.sock.send (data))
+        with self.writing:
+            while True:
+                try:
+                    AsyncReturn (self.sock.send (data))
 
-            except socket.error as error:
-                if error.errno not in BlockingErrorSet:
-                    if error.errno in PipeErrorSet:
-                        raise BrokenPipeError (error.errno, error.strerror)
-                    raise
+                except socket.error as error:
+                    if error.errno not in BlockingErrorSet:
+                        if error.errno in PipeErrorSet:
+                            raise BrokenPipeError (error.errno, error.strerror)
+                        raise
 
-            yield self.core.WhenFile (self.fd, self.core.WRITE, cancel)
+                yield self.core.WhenFile (self.fd, self.core.WRITE, cancel)
 
     #--------------------------------------------------------------------------#
     # Connect                                                                  #
@@ -77,16 +85,17 @@ class Socket (File):
     def Connect (self, address, cancel = None):
         """Connect asynchronously to address
         """
-        while True:
-            try:
-                self.sock.connect (address)
-                AsyncReturn (self)
+        with self.connecting:
+            while True:
+                try:
+                    self.sock.connect (address)
+                    AsyncReturn (self)
 
-            except socket.error as error:
-                if error.errno not in BlockingErrorSet:
-                    raise
+                except socket.error as error:
+                    if error.errno not in BlockingErrorSet:
+                        raise
 
-            yield self.core.WhenFile (self.fd, self.core.WRITE, cancel)
+                yield self.core.WhenFile (self.fd, self.core.WRITE, cancel)
 
     #--------------------------------------------------------------------------#
     # Accept                                                                   #
@@ -95,16 +104,17 @@ class Socket (File):
     def Accept (self, cancel = None):
         """Asynchronously accept connection
         """
-        while True:
-            try:
-                client, addr = self.sock.accept ()
-                AsyncReturn ((Socket (client, self.core), addr))
+        with self.accepting:
+            while True:
+                try:
+                    client, addr = self.sock.accept ()
+                    AsyncReturn ((Socket (client, self.core), addr))
 
-            except socket.error as error:
-                if error.errno not in BlockingErrorSet:
-                    raise
+                except socket.error as error:
+                    if error.errno not in BlockingErrorSet:
+                        raise
 
-            yield self.core.WhenFile (self.fd, self.core.READ, cancel)
+                yield self.core.WhenFile (self.fd, self.core.READ, cancel)
 
     #--------------------------------------------------------------------------#
     # Bind                                                                     #
@@ -134,14 +144,14 @@ class Socket (File):
     # Dispose                                                                  #
     #--------------------------------------------------------------------------#
     @Async
-    def Dispose (self):
+    def Dispose (self, cancel = None):
         """Dispose socket
         """
-        if self.disposed:
+        if self.Disposed:
             return
 
         try:
-            yield File.Dispose (self)
+            yield File.Dispose (self, cancel)
         finally:
             sock, self.sock = self.sock, None
             sock.close ()
@@ -150,17 +160,17 @@ class Socket (File):
     # Detach                                                                   #
     #--------------------------------------------------------------------------#
     @Async
-    def Detach (self):
+    def Detach (self, cancel = None):
         """Detach socket object
 
         Put the stream into closed state without actually closing the underlying
         socket. The socket is returned, and can be reused for other purposes.
         """
-        if self.disposed:
-            raise ValueError ('Socket has been disposed')
+        if self.Disposed:
+            raise RuntimeError ('Socket is disposed')
 
         try:
-            yield File.Dispose (self)
+            yield File.Dispose (self, cancel)
         finally:
             sock, self.sock = self.sock, None
 
@@ -188,6 +198,15 @@ class BufferedSocket (BufferedStream):
     """
     def __init__ (self, sock, buffer_size = None, core = None):
         BufferedStream.__init__ (self, Socket (sock, core), buffer_size)
+
+    #--------------------------------------------------------------------------#
+    # Detach                                                                   #
+    #--------------------------------------------------------------------------#
+    @Async
+    def Detach (self, cancel = None):
+        """Detach underlying socket
+        """
+        AsyncReturn ((yield (yield BufferedStream.Detach (self, cancel)).Detach (cancel)))
 
     #--------------------------------------------------------------------------#
     # Accept                                                                   #

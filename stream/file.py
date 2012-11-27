@@ -49,20 +49,21 @@ class File (Stream):
     def Read (self, size, cancel = None):
         """Unbuffered asynchronous read
         """
-        while True:
-            try:
-                data = os.read (self.fd, size)
-                if size and not data:
-                    raise BrokenPipeError (errno.EPIPE, 'Broken pipe')
-                AsyncReturn (data)
+        with self.reading:
+            while True:
+                try:
+                    data = os.read (self.fd, size)
+                    if size and not data:
+                        raise BrokenPipeError (errno.EPIPE, 'Broken pipe')
+                    AsyncReturn (data)
 
-            except OSError as error:
-                if error.errno not in BlockingErrorSet:
-                    if error.errno in PipeErrorSet:
-                        raise BrokenPipeError (error.errno, error.strerror)
-                    raise
+                except OSError as error:
+                    if error.errno not in BlockingErrorSet:
+                        if error.errno in PipeErrorSet:
+                            raise BrokenPipeError (error.errno, error.strerror)
+                        raise
 
-            yield self.core.WhenFile (self.fd, self.core.READ, cancel)
+                yield self.core.WhenFile (self.fd, self.core.READ, cancel)
 
     #--------------------------------------------------------------------------#
     # Write                                                                    #
@@ -71,30 +72,31 @@ class File (Stream):
     def Write (self, data, cancel = None):
         """Unbuffered asynchronous write
         """
-        while True:
-            try:
-                AsyncReturn (os.write (self.fd, data))
+        with self.writing:
+            while True:
+                try:
+                    AsyncReturn (os.write (self.fd, data))
 
-            except OSError as error:
-                if error.errno not in BlockingErrorSet:
-                    if error.errno in PipeErrorSet:
-                        raise BrokenPipeError (error.errno, error.strerror)
-                    raise
+                except OSError as error:
+                    if error.errno not in BlockingErrorSet:
+                        if error.errno in PipeErrorSet:
+                            raise BrokenPipeError (error.errno, error.strerror)
+                        raise
 
-            yield self.core.WhenFile (self.fd, self.core.WRITE, cancel)
+                yield self.core.WhenFile (self.fd, self.core.WRITE, cancel)
 
     #--------------------------------------------------------------------------#
     # Dispose                                                                  #
     #--------------------------------------------------------------------------#
     @Async
-    def Dispose (self):
+    def Dispose (self, cancel = None):
         """Dispose file
         """
-        if self.disposed:
+        if self.Disposed:
             return
 
         try:
-            yield Stream.Dispose (self)
+            yield Stream.Dispose (self, cancel)
         finally:
             fd, self.fd = self.fd, -1
             self.core.WhenFile (fd, None) # resolve with BrokenPipeError
@@ -106,18 +108,18 @@ class File (Stream):
     #--------------------------------------------------------------------------#
     # Detach                                                                   #
     #--------------------------------------------------------------------------#
-    def Detach (self):
+    def Detach (self, cancel = None):
         """Detach descriptor
 
         Put the stream into closed state without actually closing the underlying
         file descriptor. The file descriptor is returned, and can be reused for
         other purposes.
         """
-        if self.disposed:
-            return RaisedFuture (ValueError ('Stream has been disposed'))
+        if self.Disposed:
+            return RaisedFuture (ValueError ('File is disposed'))
 
         self.closefd = False
-        return self.Dispose ()
+        return self.Dispose (cancel)
 
     #--------------------------------------------------------------------------#
     # Options                                                                  #
@@ -136,6 +138,20 @@ class File (Stream):
         """
         return CloseOnExecFD (self.fd, enable)
 
+    #--------------------------------------------------------------------------#
+    # Representation                                                           #
+    #--------------------------------------------------------------------------#
+    def __str__ (self):
+        """String representation
+        """
+        flags = self.FlagsNames
+        if self.fd > 0:
+            self.Blocking ()    and flags.append ('blocking')
+            self.CloseOnExec () and flags.append ('close_on_exec')
+
+        return '<{} [fd:{} flags:{}] at {}>'.format (type (self).__name__,
+            self.fd, ','.join (flags), id (self))
+
 #------------------------------------------------------------------------------#
 # Buffered File                                                                #
 #------------------------------------------------------------------------------#
@@ -144,6 +160,15 @@ class BufferedFile (BufferedStream):
     """
     def __init__ (self, fd, buffer_size = None, closefd = None, core = None):
         BufferedStream.__init__ (self, File (fd, closefd, core), buffer_size)
+
+    #--------------------------------------------------------------------------#
+    # Detach                                                                   #
+    #--------------------------------------------------------------------------#
+    @Async
+    def Detach (self, cancel = None):
+        """Detach underlying descriptor
+        """
+        AsyncReturn ((yield (yield BufferedStream.Detach (self, cancel)).Detach (cancel)))
 
 #------------------------------------------------------------------------------#
 # File Options                                                                 #

@@ -34,24 +34,25 @@ class SocketSSL (Socket):
     def Read (self, size, cancel = None):
         """Unbuffered asynchronous read
         """
-        while True:
-            try:
-                data = self.sock.recv (size)
-                if size and not data:
-                    raise BrokenPipeError (errno.EPIPE, 'Broken pipe')
-                AsyncReturn (data)
+        with self.reading:
+            while True:
+                try:
+                    data = self.sock.recv (size)
+                    if size and not data:
+                        raise BrokenPipeError (errno.EPIPE, 'Broken pipe')
+                    AsyncReturn (data)
 
-            except ssl.SSLError as error:
-                if error.args [0] != ssl.SSL_ERROR_WANT_READ:
-                    raise
+                except ssl.SSLError as error:
+                    if error.args [0] != ssl.SSL_ERROR_WANT_READ:
+                        raise
 
-            except socket.error as error:
-                if error.errno not in BlockingErrorSet:
-                    if error.errno in PipeErrorSet:
-                        raise BrokenPipeError (error.errno, error.strerror)
-                    raise
+                except socket.error as error:
+                    if error.errno not in BlockingErrorSet:
+                        if error.errno in PipeErrorSet:
+                            raise BrokenPipeError (error.errno, error.strerror)
+                        raise
 
-            yield self.core.WhenFile (self.fd, self.core.READ, cancel)
+                yield self.core.WhenFile (self.fd, self.core.READ, cancel)
 
     #--------------------------------------------------------------------------#
     # Write                                                                    #
@@ -60,21 +61,22 @@ class SocketSSL (Socket):
     def Write (self, data, cancel = None):
         """Unbuffered asynchronous write
         """
-        while True:
-            try:
-                AsyncReturn (self.sock.send (data))
+        with self.writing:
+            while True:
+                try:
+                    AsyncReturn (self.sock.send (data))
 
-            except ssl.SSLError as error:
-                if error.args [0] != ssl.SSL_ERROR_WANT_WRITE:
-                    raise
+                except ssl.SSLError as error:
+                    if error.args [0] != ssl.SSL_ERROR_WANT_WRITE:
+                        raise
 
-            except socket.error as error:
-                if error.errno not in BlockingErrorSet:
-                    if error.errno in PipeErrorSet:
-                        raise BrokenPipeError (error.errno, error.strerror)
-                    raise
+                except socket.error as error:
+                    if error.errno not in BlockingErrorSet:
+                        if error.errno in PipeErrorSet:
+                            raise BrokenPipeError (error.errno, error.strerror)
+                        raise
 
-            yield self.core.WhenFile (self.fd, self.core.WRITE, cancel)
+                yield self.core.WhenFile (self.fd, self.core.WRITE, cancel)
 
     #--------------------------------------------------------------------------#
     # Connect                                                                  #
@@ -85,25 +87,26 @@ class SocketSSL (Socket):
         """
         yield Socket.Connect (self, address, cancel)
 
-        # wrap socket
-        self.sock = ssl.wrap_socket (self.sock, do_handshake_on_connect = False, **self.ssl_options)
+        with self.connecting:
+            # wrap socket
+            self.sock = ssl.wrap_socket (self.sock, do_handshake_on_connect = False, **self.ssl_options)
 
-        # do handshake
-        while True:
-            event = None
-            try:
-                self.sock.do_handshake ()
-                AsyncReturn (self)
+            # do handshake
+            while True:
+                event = None
+                try:
+                    self.sock.do_handshake ()
+                    AsyncReturn (self)
 
-            except ssl.SSLError as error:
-                if error.args [0] == ssl.SSL_ERROR_WANT_READ:
-                    event = self.core.READ
-                elif error.args [0] == ssl.SSL_ERROR_WANT_WRITE:
-                    event = self.core.WRITE
-                else:
-                    raise
+                except ssl.SSLError as error:
+                    if error.args [0] == ssl.SSL_ERROR_WANT_READ:
+                        event = self.core.READ
+                    elif error.args [0] == ssl.SSL_ERROR_WANT_WRITE:
+                        event = self.core.WRITE
+                    else:
+                        raise
 
-            yield self.core.WhenFile (self.fd, event, cancel)
+                yield self.core.WhenFile (self.fd, event, cancel)
 
     #--------------------------------------------------------------------------#
     # Accept                                                                   #
@@ -114,25 +117,26 @@ class SocketSSL (Socket):
 
         Returns client AsyncSSLSocket and address.
         """
-        while True:
-            try:
-                client, addr = self.sock.accept ()
+        with self.accepting:
+            while True:
+                try:
+                    client, addr = self.sock.accept ()
 
-                # wrap client socket
-                context = getattr (self.sock, 'context', None)
-                if context:
-                    # use associated context (python 3.2 or higher)
-                    client = context.wrap_socket (client, server_side = True)
-                else:
-                    client = ssl.wrap_socket (client, server_side = True, **self.ssl_options)
+                    # wrap client socket
+                    context = getattr (self.sock, 'context', None)
+                    if context:
+                        # use associated context (python 3.2 or higher)
+                        client = context.wrap_socket (client, server_side = True)
+                    else:
+                        client = ssl.wrap_socket (client, server_side = True, **self.ssl_options)
 
-                AsyncReturn ((SocketSSL (client, self.buffer_size, self.ssl_options, self.core), addr))
+                    AsyncReturn ((SocketSSL (client, self.buffer_size, self.ssl_options, self.core), addr))
 
-            except socket.error as error:
-                if error.errno not in BlockingErrorSet:
-                    raise
+                except socket.error as error:
+                    if error.errno not in BlockingErrorSet:
+                        raise
 
-            yield self.core.WhenFile (self.fd, self.core.READ, cancel)
+                yield self.core.WhenFile (self.fd, self.core.READ, cancel)
 
 #------------------------------------------------------------------------------#
 # Buffered SSL Socket                                                          #
@@ -142,6 +146,15 @@ class BufferedSocketSSL (BufferedStream):
     """
     def __init__ (self, sock, buffer_size = None, ssl_options = None, core = None):
         BufferedStream.__init__ (SocketSSL (sock, ssl_options, core), buffer_size)
+
+    #--------------------------------------------------------------------------#
+    # Detach                                                                   #
+    #--------------------------------------------------------------------------#
+    @Async
+    def Detach (self, cancel = None):
+        """Detach underlying socket
+        """
+        AsyncReturn ((yield (yield BufferedStream.Detach (self, cancel)).Detach (cancel)))
 
     #--------------------------------------------------------------------------#
     # Accept                                                                   #

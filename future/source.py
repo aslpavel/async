@@ -77,8 +77,11 @@ class FutureSource (object):
 #------------------------------------------------------------------------------#
 # Source Future                                                                #
 #------------------------------------------------------------------------------#
-
 class SourceFuture (Future):
+    """Source future
+
+    Future controlled by its creator FutureSource object.
+    """
     __slots__ = ('source',)
 
     def __init__ (self, source):

@@ -217,7 +217,8 @@ class Core (object):
                 # descriptors registered and timeout is negative poller will raise
                 # StopIteration and break this loop.
                 yield
-                events = self.poller.Poll (max (self.timer.Timeout (), self.context.Timeout ()))
+                events = self.poller.Poll (0) if not block else \
+                    self.poller.Poll (max (self.timer.Timeout (), self.context.Timeout ()))
 
         finally:
             if top_level:
