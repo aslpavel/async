@@ -120,7 +120,7 @@ class EPollPoller (Poller):
 
         try:
             return self.epoll.poll (timeout)
-        except IOError as error:
+        except (IOError, OSError) as error:
             if error.errno == errno.EINTR:
                 return tuple ()
             raise
@@ -172,8 +172,13 @@ class SelectPoller (Poller):
         if not self.error and timeout < 0:
             raise StopIteration () # would have blocked indefinitely
 
-        read, write, error = select.select (self.read, self.write, self.error,
-            timeout if timeout >= 0 else None)
+        try:
+            read, write, error = select.select (self.read, self.write, self.error,
+                timeout if timeout >= 0 else None)
+        except (OSError, IOError) as error:
+            if error.errno == errno.EINTR:
+                return tuple ()
+            raise
 
         events = {}
         for fd in read:
