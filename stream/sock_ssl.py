@@ -7,7 +7,7 @@ except ImportError:
     ssl = None # no SSL support
 
 from .sock import Socket
-from .stream_buff import BufferedStream
+from .buffered import BufferedStream
 from ..async import Async, AsyncReturn
 from ..core.error import BrokenPipeError, BlockingErrorSet, PipeErrorSet
 

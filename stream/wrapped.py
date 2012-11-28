@@ -1,14 +1,13 @@
 # -*- coding: utf-8 -*-
-
 from .stream import Stream
 from ..async import Async, AsyncReturn
 
-__all__ = ('AdapterStream',)
+__all__ = ('WrappedStream',)
 #------------------------------------------------------------------------------#
-# Adapter Stream                                                               #
+# Wrapped Stream                                                               #
 #------------------------------------------------------------------------------#
-class AdapterStream (Stream):
-    """Stream adapter base class
+class WrappedStream (Stream):
+    """Wrapped Stream base class
     """
     def __init__ (self, base):
         Stream.__init__ (self)

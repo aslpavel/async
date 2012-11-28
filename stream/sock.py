@@ -2,9 +2,9 @@
 import socket
 import errno
 
-from .file import File
 from .stream import StreamContext
-from .stream_buff import BufferedStream
+from .file import File
+from .buffered import BufferedStream
 from ..async import Async, AsyncReturn
 from ..core.error import BrokenPipeError, BlockingErrorSet, PipeErrorSet
 

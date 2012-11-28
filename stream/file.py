@@ -4,7 +4,7 @@ import errno
 import fcntl
 
 from .stream import Stream
-from .stream_buff import BufferedStream
+from .buffered import BufferedStream
 from ..future import RaisedFuture
 from ..async import Async, AsyncReturn
 from ..core import Core
