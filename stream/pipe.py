@@ -90,7 +90,7 @@ class Pipe (object):
         if writer is not None:
             dispose.append (writer.Dispose (cancel))
 
-        yield Future.WhenAll (dispose)
+        yield Future.All (dispose)
 
     def __enter__ (self):
         return self

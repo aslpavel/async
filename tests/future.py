@@ -18,11 +18,11 @@ class FutureTest (unittest.TestCase):
             Future ()
 
     def test_all (self):
-        """Test WhenAll composition
+        """Test Future.All() composition
         """
         # result
         s0, s1 = FutureSource (), FutureSource ()
-        future_all = Future.WhenAll ((s0.Future, s1.Future))
+        future_all = Future.All ((s0.Future, s1.Future))
         self.assertFalse (future_all.IsCompleted ())
 
         s1.ResultSet (1)
@@ -34,7 +34,7 @@ class FutureTest (unittest.TestCase):
 
         # error
         s0, s1 = FutureSource (), FutureSource ()
-        future_all = Future.WhenAll ((s0.Future, s1.Future))
+        future_all = Future.All ((s0.Future, s1.Future))
         self.assertFalse (future_all.IsCompleted ())
 
         s1.ErrorRaise (ValueError ())
@@ -43,11 +43,11 @@ class FutureTest (unittest.TestCase):
             future_all.Result ()
 
     def test_any (self):
-        """Test WhenAny composition
+        """Test Future.Any() composition
         """
         # result
         s0, s1 = FutureSource (), FutureSource ()
-        future_any = Future.WhenAny ((s0.Future, s1.Future))
+        future_any = Future.Any ((s0.Future, s1.Future))
         self.assertFalse (future_any.IsCompleted ())
 
         s1.ResultSet (1)
@@ -56,7 +56,7 @@ class FutureTest (unittest.TestCase):
 
         # error
         s0, s1 = FutureSource (), FutureSource ()
-        future_any = Future.WhenAny ((s0.Future, s1.Future))
+        future_any = Future.Any ((s0.Future, s1.Future))
         self.assertFalse (future_any.IsCompleted ())
 
         s1.ErrorRaise (ValueError ())

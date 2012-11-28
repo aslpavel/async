@@ -150,7 +150,7 @@ class Future (object):
     # Composition                                                              #
     #--------------------------------------------------------------------------#
     @staticmethod
-    def WhenAny (futures):
+    def Any (futures):
         """Any future
 
         Returns future witch will be resolved with the first resolved future
@@ -170,7 +170,7 @@ class Future (object):
         return source.Future
 
     @staticmethod
-    def WhenAll (futures):
+    def All (futures):
         """All future
 
         Returns future witch will be resolved with None, if all futures was
