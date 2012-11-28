@@ -9,9 +9,9 @@ else:
 
 from .poller import Poller
 from .notifier import Notifier
-from .await_file import FileAwaiter
-from .await_time import TimeAwaiter
-from .await_context import ContextAwaiter
+from .file_await import FileAwaiter
+from .time_await import TimeAwaiter
+from .context_await import ContextAwaiter
 from ..future import FutureCanceled, RaisedFuture
 
 __all__ = ('Core',)
@@ -24,7 +24,7 @@ class Core (object):
     Asynchronous I/O and Timer dispatcher. Executes until all requested
     asynchronous operation are completed or when object itself is disposed.
     All interaction with the Core must be done from that Core's thread,
-    exception are WhenContext() and Notify().
+    exception are ContextAwait() and Notify().
     """
     instance_lock = threading.Lock ()
     instance      = None
@@ -73,7 +73,7 @@ class Core (object):
     #--------------------------------------------------------------------------#
     # Time                                                                     #
     #--------------------------------------------------------------------------#
-    def WhenTime (self, resume, cancel = None):
+    def TimeAwait (self, resume, cancel = None):
         """Resolved when specified unix time is reached
 
         Result of the future is scheduled time or FutureCanceled if it was
@@ -84,7 +84,7 @@ class Core (object):
 
         return self.timer.Await (resume, cancel)
 
-    def WhenTimeDelay (self, delay, cancel = None):
+    def TimeDelayAwait (self, delay, cancel = None):
         """Resolved after specified delay in seconds
 
         Result of the future is scheduled time.
@@ -97,20 +97,20 @@ class Core (object):
     #--------------------------------------------------------------------------#
     # Idle                                                                     #
     #--------------------------------------------------------------------------#
-    def WhenIdle (self, cancel = None):
+    def IdleAwait (self, cancel = None):
         """Resolved when new iteration is started.
 
         Result of the future is None of FutureCanceled if it was canceled.
         """
-        return self.WhenTime (0, cancel)
+        return self.TimeAwait (0, cancel)
 
     #--------------------------------------------------------------------------#
     # Context                                                                  #
     #--------------------------------------------------------------------------#
-    def WhenContext (self, value = None):
+    def ContextAwait (self, value = None):
         """Resolved inside core thread
 
-        It is safe to call this method from any thread at any time. WhenContext()
+        It is safe to call this method from any thread at any time. ContextAwait()
         may be used to transfer control from other threads to the Core's thread.
         """
         if self.flags & self.FLAG_DISPOSED:
@@ -127,7 +127,7 @@ class Core (object):
     DISCONNECT = Poller.DISCONNECT
     ERROR      = Poller.ERROR
 
-    def WhenFile (self, fd, mask, cancel = None):
+    def FileAwait (self, fd, mask, cancel = None):
         """Poll file descriptor
 
         Poll file descriptor for events specified by mask. If mask is None then

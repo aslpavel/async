@@ -63,7 +63,7 @@ class File (Stream):
                             raise BrokenPipeError (error.errno, error.strerror)
                         raise
 
-                yield self.core.WhenFile (self.fd, self.core.READ, cancel)
+                yield self.core.FileAwait (self.fd, self.core.READ, cancel)
 
     #--------------------------------------------------------------------------#
     # Write                                                                    #
@@ -83,7 +83,7 @@ class File (Stream):
                             raise BrokenPipeError (error.errno, error.strerror)
                         raise
 
-                yield self.core.WhenFile (self.fd, self.core.WRITE, cancel)
+                yield self.core.FileAwait (self.fd, self.core.WRITE, cancel)
 
     #--------------------------------------------------------------------------#
     # Dispose                                                                  #
@@ -99,7 +99,7 @@ class File (Stream):
             yield Stream.Dispose (self, cancel)
         finally:
             fd, self.fd = self.fd, -1
-            self.core.WhenFile (fd, None) # resolve with BrokenPipeError
+            self.core.FileAwait (fd, None) # resolve with BrokenPipeError
             if self.closefd:
                 os.close (fd)
 

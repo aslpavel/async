@@ -62,7 +62,7 @@ class Notifier (object):
                 except OSError as error:
                     if error.errno not in BlockingErrorSet:
                         break
-                yield self.core.WhenFile (self.read_fd, self.core.READ)
+                yield self.core.FileAwait (self.read_fd, self.core.READ)
         finally:
             self.Dispose ()
 
@@ -75,12 +75,12 @@ class Notifier (object):
         read_fd, self.read_fd = self.read_fd, -1
         if read_fd >= 0:
             os.close (read_fd)
-            self.core.WhenFile (read_fd, None)
+            self.core.FileAwait (read_fd, None)
 
         write_fd, self.write_fd = self.write_fd, -1
         if write_fd >= 0:
             os.close (write_fd)
-            self.core.WhenFile (write_fd, None)
+            self.core.FileAwait (write_fd, None)
 
     def __enter__ (self):
         return self

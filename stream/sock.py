@@ -56,7 +56,7 @@ class Socket (File):
                             raise BrokenPipeError (error.errno, error.strerror)
                         raise
 
-                yield self.core.WhenFile (self.fd, self.core.READ, cancel)
+                yield self.core.FileAwait (self.fd, self.core.READ, cancel)
 
     #--------------------------------------------------------------------------#
     # Write                                                                    #
@@ -76,7 +76,7 @@ class Socket (File):
                             raise BrokenPipeError (error.errno, error.strerror)
                         raise
 
-                yield self.core.WhenFile (self.fd, self.core.WRITE, cancel)
+                yield self.core.FileAwait (self.fd, self.core.WRITE, cancel)
 
     #--------------------------------------------------------------------------#
     # Connect                                                                  #
@@ -95,7 +95,7 @@ class Socket (File):
                     if error.errno not in BlockingErrorSet:
                         raise
 
-                yield self.core.WhenFile (self.fd, self.core.WRITE, cancel)
+                yield self.core.FileAwait (self.fd, self.core.WRITE, cancel)
 
     #--------------------------------------------------------------------------#
     # Accept                                                                   #
@@ -114,7 +114,7 @@ class Socket (File):
                     if error.errno not in BlockingErrorSet:
                         raise
 
-                yield self.core.WhenFile (self.fd, self.core.READ, cancel)
+                yield self.core.FileAwait (self.fd, self.core.READ, cancel)
 
     #--------------------------------------------------------------------------#
     # Bind                                                                     #
