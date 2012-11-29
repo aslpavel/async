@@ -5,7 +5,7 @@ import unittest
 import collections
 
 from ..async import Async, AsyncReturn
-from ..future import FutureSource, FutureCanceled
+from ..event import Event
 
 from ..core import BrokenPipeError
 from ..stream import Stream
@@ -236,7 +236,7 @@ class TestStream (Stream):
     def Read (self, size, cancel = None):
         with self.reading:
             self.rd_buffer.append (size)
-            data = yield self.rd.Await ()
+            data = (yield self.rd.Await ()) [0]
             if data is None:
                 raise BrokenPipeError ()
 
@@ -263,7 +263,7 @@ class TestStream (Stream):
     @Async
     def Write (self, data, cancel = None):
         with self.writing:
-            size = yield self.wr.Await ()
+            size = (yield self.wr.Await ()) [0]
             if size is None:
                 raise BrokenPipeError ()
 
@@ -277,45 +277,5 @@ class TestStream (Stream):
     def WriteComplete (self, size):
         assert size is None or size > 0
         self.wr (size)
-
-#------------------------------------------------------------------------------#
-# Event                                                                        #
-#------------------------------------------------------------------------------#
-class Event (object):
-    """Event
-
-    Simplified "pretzel" event type.
-    """
-    def __init__ (self):
-        self.handlers = set ()
-
-    def __call__ (self, event):
-        for handler in tuple (self.handlers):
-            if handler (event):
-                continue
-            self.handlers.discard (handler)
-
-    def Add (self, handler):
-        self.handlers.add (handler)
-        return handler
-
-    def Remove (self, handler):
-        self.handlers.discard (handler)
-
-    def Await (self, cancel = None):
-        source = FutureSource ()
-
-        def handler (event):
-            source.ResultSet (event)
-            return False
-        self.Add (handler)
-
-        if cancel:
-            def cancel_cont (result, error):
-                self.Remove (handler)
-                source.ErrorRaise (FutureCanceled ())
-            cancel.Continue (cancel_cont)
-
-        return source.Future
 
 # vim: nu ft=python columns=120 :
