@@ -6,28 +6,36 @@ C# like Async/Await paradigm for asynchronous programming in Python
 
 ```python
 import socket
-from async import Async, AsyncSocket, Core, BrokenPipeError
+from async import Async, BufferedSocket, Core, BrokenPipeError
 
 def main ():
-    with Core.Instance () as core:
-        sock = AsyncSocket (socket.socket ())
-        sock.Bind   (('localhost', 8000))
-        sock.Listen (10)
-
-        @Async
-        def process (sock, addr):
-            try:
+    @Async
+    def server (port, addr = None):
+        try:
+            with BufferedSocket (socket.socket ()) as sock:
+                sock.Bind   ((addr or 'localhost', port))
+                sock.Listen (10)
                 while True:
-                    yield sock.Write ((yield sock.Read (1 << 20)))
-            except BrokenPipeError: pass
+                    echo (*(yield sock.Accept ())).Traceback ('process')
+        finally:
+            core.Dispose ()
 
-        @Async
-        def server ():
+    @Async
+    def echo (sock, addr):
+        try:
             while True:
-                process (*(yield sock.Accept ())).Traceback ('process')
+                yield sock.Write ((yield sock.Read (1 << 20)))
+                yield sock.Flush ()
 
-        server ().Traceback ('server')
-        core ()
+        except BrokenPipeError: pass
+        finally:
+            sock.Dispose ()
+
+
+    with Core.Instance () as core:
+        server (port = 8000).Traceback ('server')
+        if not core.Disposed:
+            core ()
 
 if __name__ == '__main__':
     main ()

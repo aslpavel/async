@@ -164,17 +164,18 @@ class BufferedStream (WrappedStream):
                 self.read_buffer.Enqueue ((yield self.base.Read (self.buffer_size, cancel)))
             AsyncReturn (tuple (self.read_buffer.Dequeue (size) for size in sizes))
 
-    def WriteTuple (self, tup):
+    @Async
+    def WriteTuple (self, tup, cancel = None):
         """Write Tuple<Bytes> to file without blocking
         """
         # count
-        self.Write (self.tup_struct.pack (len (tup)))
+        yield self.Write (self.tup_struct.pack (len (tup)), cancel)
         # sizes
         for chunk in tup:
-            self.Write (self.tup_struct.pack (len (chunk)))
+            yield self.Write (self.tup_struct.pack (len (chunk)), cancel)
         # chunks
         for chunk in tup:
-            self.Write (chunk)
+            yield self.Write (chunk, cancel)
 
 #------------------------------------------------------------------------------#
 # Buffer                                                                       #

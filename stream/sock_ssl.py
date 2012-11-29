@@ -145,7 +145,7 @@ class BufferedSocketSSL (BufferedStream):
     """Buffered asynchronous SSL socket
     """
     def __init__ (self, sock, buffer_size = None, ssl_options = None, core = None):
-        BufferedStream.__init__ (SocketSSL (sock, ssl_options, core), buffer_size)
+        BufferedStream.__init__ (self, SocketSSL (sock, ssl_options, core), buffer_size)
 
     #--------------------------------------------------------------------------#
     # Detach                                                                   #

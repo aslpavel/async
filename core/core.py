@@ -13,6 +13,7 @@ from .file_await import FileAwaiter
 from .time_await import TimeAwaiter
 from .context_await import ContextAwaiter
 from ..future import FutureCanceled, RaisedFuture
+from ..event import StateMachine, StateMachineGraph
 
 __all__ = ('Core',)
 #------------------------------------------------------------------------------#
@@ -29,14 +30,19 @@ class Core (object):
     instance_lock = threading.Lock ()
     instance      = None
 
-    FLAG_NONE     = 0x0
-    FLAG_RUNNING  = 0x1
-    FLAG_DISPOSED = 0x2
+    STATE_INIT      = 'initial'
+    STATE_EXECUTING = 'executing'
+    STATE_DISPOSED  = 'disposed'
+
+    STATE_GRAPH = StateMachineGraph.FromDict (STATE_INIT, {
+        STATE_INIT: (STATE_EXECUTING, STATE_DISPOSED),
+        STATE_EXECUTING: (STATE_DISPOSED,)
+    })
 
     def __init__ (self, poller_name = None):
         self.poller = Poller.FromName (poller_name)
         self.thread_ident = None
-        self.flags = self.FLAG_NONE
+        self.state = StateMachine (self.STATE_GRAPH)
 
         # await objects
         self.timer = TimeAwaiter ()
@@ -79,7 +85,7 @@ class Core (object):
         Result of the future is scheduled time or FutureCanceled if it was
         canceled.
         """
-        if self.flags & self.FLAG_DISPOSED:
+        if self.Disposed:
             return RaisedFuture (FutureCanceled ('Core is stopped'))
 
         return self.timer.Await (resume, cancel)
@@ -89,7 +95,7 @@ class Core (object):
 
         Result of the future is scheduled time.
         """
-        if self.flags & self.FLAG_DISPOSED:
+        if self.Disposed:
             return RaisedFuture (FutureCanceled ('Core is stopped'))
 
         return self.timer.Await (time () + delay, cancel)
@@ -113,7 +119,7 @@ class Core (object):
         It is safe to call this method from any thread at any time. ContextAwait()
         may be used to transfer control from other threads to the Core's thread.
         """
-        if self.flags & self.FLAG_DISPOSED:
+        if self.Disposed:
             return RaisedFuture (FutureCanceled ('Core is stopped'))
 
         return self.context.Await (value)
@@ -135,7 +141,7 @@ class Core (object):
         with BrokenPipeError, otherwise future is resolved with bitmap of
         the events happened of file descriptor or error if any.
         """
-        if self.flags & self.FLAG_DISPOSED:
+        if self.Disposed:
             return RaisedFuture (FutureCanceled ('Core is stopped'))
 
         assert fd >= 0, 'Invalid file descriptor: {}'.format (fd)
@@ -153,44 +159,46 @@ class Core (object):
     def Notify (self):
         """Notify core that it must be waken
         """
-        if self.flags & self.FLAG_DISPOSED:
+        if self.Disposed:
             raise RuntimeError ('Core is disposed')
 
         if self.thread_ident != get_ident ():
             self.notifier ()
 
     #--------------------------------------------------------------------------#
-    # Start|Stop                                                               #
+    # Execute                                                                  #
     #--------------------------------------------------------------------------#
-    def __call__ (self): return self.Execute ()
-    def Execute  (self):
-        """Start execution of the core
+    @property
+    def Executing (self):
+        """Is core executing
         """
-        if self.flags & self.FLAG_DISPOSED:
-            raise RuntimeError ('Core is disposed')
+        return self.state.state == self.STATE_EXECUTING
 
-        state_running = self.FLAG_RUNNING
-        if self.flags & state_running:
-            return
+    def Execute  (self):
+        """Execute core
+        """
+        if self.state (self.STATE_EXECUTING):
+            try:
+                for _ in self.Iterator ():
+                    if self.state.state != self.STATE_EXECUTING:
+                        break
+            finally:
+                self.Dispose ()
 
-        self.flags ^= state_running
-        try:
-            for _ in self.Iterator ():
-                if not self.flags & state_running:
-                    break
-        finally:
-            self.Dispose ()
+    def __call__ (self):
+        """Execute core
+        """
+        return self.Execute ()
 
     #--------------------------------------------------------------------------#
     # Iterate                                                                  #
     #--------------------------------------------------------------------------#
-    def __iter__ (self): return self.Iterator ()
     def Iterator (self, block = True):
         """Core's iterator
 
         Returns generator object which yield at the beginning of each iteration.
         """
-        if self.flags & self.FLAG_DISPOSED:
+        if self.Disposed:
             raise RuntimeError ('Core is disposed')
 
         top_level = False
@@ -224,19 +232,26 @@ class Core (object):
             if top_level:
                 self.thread_ident = None
 
+    def __iter__ (self):
+        """Core's iterator
+        """
+        return self.Iterator ()
+
     #--------------------------------------------------------------------------#
     # Disposable                                                               #
     #--------------------------------------------------------------------------#
+    @property
+    def Disposed (self):
+        return self.state.state == self.STATE_DISPOSED
+
     def Dispose (self, error = None):
         """Dispose core
 
         If there is any unresolved asynchronous operations, they are resolved
         either with ``error`` if it is set or FutureCanceled exception.
         """
-        if self.flags & self.FLAG_DISPOSED:
+        if not self.state (self.STATE_DISPOSED):
             return
-        self.flags &= ~self.FLAG_RUNNING # unset running flag
-        self.flags ^= self.FLAG_DISPOSED # set disposed flag
 
         # resolve all futures
         error = error or FutureCanceled ('Core has been stopped')
@@ -266,12 +281,13 @@ class Core (object):
     # Representation                                                           #
     #--------------------------------------------------------------------------#
     def __str__ (self):
-        """String representation of the core
+        """String representation
         """
-        flags = []
-        self.flags & self.FLAG_RUNNING  and flags.append ('running')
-        self.flags & self.FLAG_DISPOSED and flags.append ('disposed')
-        return '<{} [flags:{}] at {}'.format (type (self).__name__, ','.join (flags), id (self))
-    __repr__ = __str__
+        return '<{} [state:{}] at {}'.format (type (self).__name__, self.state.State, id (self))
+
+    def __repr__ (self):
+        """String representation
+        """
+        return str (self)
 
 # vim: nu ft=python columns=120 :

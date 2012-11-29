@@ -19,10 +19,10 @@ class Socket (File):
     def __init__ (self, sock, core = None):
         self.sock = sock
 
-        self.connecting = StreamContext ('connecting', self.FLAG_CONNECTING,
-            self.FLAG_DISPOSING | self.FLAG_DISPOSED)
-        self.accepting = StreamContext ('accepting', self.FLAG_ACCEPTING,
-            self.FLAG_DISPOSING | self.FLAG_DISPOSED)
+        self.connecting = StreamContext ('connecting', self,
+            self.FLAG_CONNECTING, self.FLAG_DISPOSING | self.FLAG_DISPOSED)
+        self.accepting = StreamContext ('accepting', self,
+            self.FLAG_ACCEPTING, self.FLAG_DISPOSING | self.FLAG_DISPOSED)
 
         File.__init__ (self, sock.fileno (), False, core)
 
