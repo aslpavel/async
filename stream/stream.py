@@ -95,6 +95,12 @@ class Stream (object):
     # Dispose                                                                  #
     #--------------------------------------------------------------------------#
     @property
+    def Disposing (self):
+        """Is stream disposing
+        """
+        return self.flags & self.FLAG_DISPOSING
+
+    @property
     def Disposed (self):
         """Is stream disposed
         """

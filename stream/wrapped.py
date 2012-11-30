@@ -74,7 +74,7 @@ class WrappedStream (Stream):
     @Async
     def Flush (self, cancel = None):
         if self.base is None:
-            return
+            return # base stream was detached
 
         with self.flushing:
             AsyncReturn ((yield self.base.Flush (cancel)))

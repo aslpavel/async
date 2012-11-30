@@ -3,7 +3,6 @@ import struct
 from collections import deque
 
 from .wrapped import WrappedStream
-from ..future import SucceededFuture
 from ..async import Async, AsyncReturn
 from ..singleton import Singleton
 from ..core import BrokenPipeError
@@ -30,7 +29,7 @@ class BufferedStream (WrappedStream):
     #--------------------------------------------------------------------------#
     @Async
     def Read (self, size, cancel = None):
-        """Read asynchronously at most size and at least one byte(s)
+        """Read at most size and at least one byte(s)
         """
         if not size:
             AsyncReturn (b'')
@@ -43,7 +42,7 @@ class BufferedStream (WrappedStream):
 
     @Async
     def ReadUntilSize (self, size, cancel = None):
-        """Read asynchronously exactly size bytes
+        """Read exactly size bytes
         """
         if not size:
             AsyncReturn (b'')
@@ -56,7 +55,7 @@ class BufferedStream (WrappedStream):
 
     @Async
     def ReadUntilEof (self, cancel = None):
-        """Read asynchronously data until stream is closed
+        """Read until stream is closed
         """
         with self.reading:
             try:
@@ -68,7 +67,7 @@ class BufferedStream (WrappedStream):
 
     @Async
     def ReadUntilSub (self, sub = None, cancel = None):
-        """Read asynchronously until substring is found
+        """Read until substring is found
 
         Returns data including substring. Default substring is "\\n".
         """
@@ -89,7 +88,7 @@ class BufferedStream (WrappedStream):
 
     @Async
     def ReadUntilRegex (self, regex, cancel = None):
-        """Read asynchronously until regular expression is matched
+        """Read until regular expression is matched
 
         Returns data (including match) and match object.
         """
@@ -108,13 +107,32 @@ class BufferedStream (WrappedStream):
     #--------------------------------------------------------------------------#
     # Write                                                                    #
     #--------------------------------------------------------------------------#
+    @Async
     def Write (self, data, cancel = None):
-        """Write Bytes to file without blocking
+        """Write data
+
+        Write data without blocking if write buffer's length less then doubled
+        buffer size limit, if buffer's length is more then buffer size limit
+        flush is started in the background.
         """
-        self.write_buffer.Enqueue (data)
-        if not self.flushing and self.write_buffer.Length () >= self.buffer_size:
-            self.Flush ()
-        return SucceededFuture (len (data))
+        if self.write_buffer.Length () > 2 * self.buffer_size:
+            yield self.Flush ()
+
+        with self.writing:
+            self.write_buffer.Enqueue (data)
+            if not self.flushing and self.write_buffer.Length () >= self.buffer_size:
+                self.Flush ()
+
+            AsyncReturn (len (data))
+
+    def WriteBuffer (self, data):
+        """Enqueue data to write buffer
+
+        Just enqueues data to write buffer (buffer's size limit would not be
+        checked), flush need to be called manually.
+        """
+        with self.writing:
+            self.write_buffer.Enqueue (data)
 
     #--------------------------------------------------------------------------#
     # Flush                                                                    #
@@ -122,10 +140,14 @@ class BufferedStream (WrappedStream):
     @Singleton
     @Async
     def Flush (self, cancel = None):
-        """Flush queued writes asynchronously
+        """Flush write buffer
+
+        This function is singleton, which means it will not start new flush
+        until previous one is finished (same future object is returned). So it's
+        safe to call it regardless to completion of previous call.
         """
         if self.base is None:
-            return
+            return # base stream was detached
 
         with self.flushing:
             while self.write_buffer:
@@ -134,48 +156,67 @@ class BufferedStream (WrappedStream):
             yield self.base.Flush (cancel)
 
     #--------------------------------------------------------------------------#
-    # Read|Write Tuple                                                         #
+    # Serialize                                                                #
     #--------------------------------------------------------------------------#
-    tup_struct = struct.Struct ('>I')
+    size_struct = struct.Struct ('>I')
 
+    # Bytes
     @Async
-    def ReadTuple (self, cancel = None):
-        """Read Tuple<Bytes> asynchronously
+    def BytesRead (self, cancel = None):
+        """Read bytes object
         """
-        with self.reading:
-            tup_struct_size = self.tup_struct.size
+        AsyncReturn ((yield self.ReadUntilSize (self.size_struct.unpack
+                    ((yield self.ReadUntilSize (self.size_struct.size, cancel))) [0], cancel)))
 
-            # count
-            while self.read_buffer.Length () < tup_struct_size:
-                self.read_buffer.Enqueue ((yield self.base.Read (self.buffer_size, cancel)))
-            count = self.tup_struct.unpack (self.read_buffer.Dequeue (tup_struct_size)) [0]
+    def BytesWriteBuffer (self, bytes):
+        """Write bytes object to buffer
+        """
+        self.WriteBuffer (self.size_struct.pack (len (bytes)))
+        self.WriteBuffer (bytes)
 
-            # sizes
-            while self.read_buffer.Length () < tup_struct_size * count:
-                self.read_buffer.Enqueue ((yield self.base.Read (self.buffer_size, cancel)))
-            size  = 0
-            sizes = []
-            for _ in range (count):
-                sizes.append (self.tup_struct.unpack (self.read_buffer.Dequeue (tup_struct_size)) [0])
-                size += sizes [-1]
-
-            # chunks
-            while self.read_buffer.Length () < size:
-                self.read_buffer.Enqueue ((yield self.base.Read (self.buffer_size, cancel)))
-            AsyncReturn (tuple (self.read_buffer.Dequeue (size) for size in sizes))
-
+    # Tuple of structures
     @Async
-    def WriteTuple (self, tup, cancel = None):
-        """Write Tuple<Bytes> to file without blocking
+    def StructTupleRead (self, struct, complex, cancel = None):
+        """Read tuple of structures
         """
-        # count
-        yield self.Write (self.tup_struct.pack (len (tup)), cancel)
-        # sizes
-        for chunk in tup:
-            yield self.Write (self.tup_struct.pack (len (chunk)), cancel)
-        # chunks
-        for chunk in tup:
-            yield self.Write (chunk, cancel)
+        struct_data = yield self.ReadUntilSize (self.size_struct.unpack ((
+                      yield self.ReadUntilSize (self.size_struct.size, cancel))) [0], cancel)
+        if complex:
+            AsyncReturn (tuple (struct.unpack (struct_data [offset:offset + struct.size])
+                for offset in range (0, len (struct_data), struct.size)))
+        else:
+            AsyncReturn (tuple (struct.unpack (struct_data [offset:offset + struct.size]) [0]
+                for offset in range (0, len (struct_data), struct.size)))
+
+    def StructTupleWriteBuffer (self, struct, complex, struct_tuple):
+        """Write tuple of structures to buffer
+        """
+        self.WriteBuffer (self.size_struct.pack (len (struct_tuple) * struct.size))
+        if complex:
+            for struct_target in struct_tuple:
+                self.WriteBuffer (struct.pack (*struct_target))
+        else:
+            for struct_target in struct_tuple:
+                self.WriteBuffer (struct.pack (struct_target))
+
+    # Tuple of bytes
+    @Async
+    def BytesTupleRead (self, cancel = None):
+        """Read array of bytes
+        """
+        bytes_tuple = []
+        for size in (yield self.StructTupleRead (self.size_struct, False, cancel)):
+            bytes_tuple.append ((yield self.ReadUntilSize (size)))
+        AsyncReturn (tuple (bytes_tuple))
+
+    def BytesTupleWriteBuffer (self, bytes_tuple):
+        """Write bytes array object to buffer
+        """
+        self.StructTupleWriteBuffer (self.size_struct, False,
+            tuple (len (bytes) for bytes in bytes_tuple))
+
+        for bytes in bytes_tuple:
+            self.WriteBuffer (bytes)
 
 #------------------------------------------------------------------------------#
 # Buffer                                                                       #
@@ -192,7 +233,7 @@ class Buffer (object):
     # Slice                                                                    #
     #--------------------------------------------------------------------------#
     def Slice (self, size = None, offset = None):
-        """Get bytes with "offset" and "size"
+        """Get bytes with ``offset`` and ``size``
         """
         offset = offset or 0
         size = size or self.Length ()
@@ -287,5 +328,17 @@ class Buffer (object):
         return bool (self.chunks)
     __nonzero__ = __bool__
 
+    #--------------------------------------------------------------------------#
+    # Representation                                                           #
+    #--------------------------------------------------------------------------#
+    def __str__ (self):
+        """String representation
+        """
+        return '<Buffer [length:{}] at {}>'.format (self.Length (), id (self))
+
+    def __repr__ (self):
+        """String representation
+        """
+        return str (self)
 
 # vim: nu ft=python columns=120 :

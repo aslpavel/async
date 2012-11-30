@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import io
 import re
+import errno
+import struct
 import unittest
 import collections
 
@@ -104,6 +106,9 @@ class StreamTest (unittest.TestCase):
     """Test asynchronous stream
     """
 
+    #--------------------------------------------------------------------------#
+    # Read                                                                     #
+    #--------------------------------------------------------------------------#
     def testRead (self):
         stream = BufferedStream (TestStream (), 8)
 
@@ -183,6 +188,9 @@ class StreamTest (unittest.TestCase):
         read = stream.Read (4)
         self.assertEqual (read.Result (), b'tail')
 
+    #--------------------------------------------------------------------------#
+    # Write                                                                    #
+    #--------------------------------------------------------------------------#
     def testWrite (self):
         stream = BufferedStream (TestStream (), 8)
 
@@ -198,21 +206,62 @@ class StreamTest (unittest.TestCase):
         stream.WriteComplete (2)
         self.assertEqual (stream.Written, b'0123456789')
 
-    def testTuple (self):
+    #--------------------------------------------------------------------------#
+    # Serialize                                                                #
+    #--------------------------------------------------------------------------#
+    def testBytes (self):
         stream = BufferedStream (TestStream (), 1024)
 
-        tup = b'from', b'to', b'body'
+        bytes = b'some bytes string'
 
-        stream.WriteTuple (tup)
+        stream.BytesWriteBuffer (bytes)
         stream.Flush ()
         stream.WriteComplete (1024)
-        tup_data = stream.Written
 
-        tup_future = stream.ReadTuple ()
-        for index in range (len (tup_data)):
-            self.assertFalse (tup_future.IsCompleted ())
-            self.assertEqual (stream.ReadComplete (tup_data [index:index + 1]), 1)
-        self.assertEqual (tup_future.Result (), tup)
+        bytes_future = stream.BytesRead ()
+        stream.ReadComplete (stream.Written)
+        self.assertEqual (bytes_future.Result (), bytes)
+
+    def testStructTuple (self):
+        stream = BufferedStream (TestStream (), 1024)
+
+        struct_type = struct.Struct ('>H')
+        struct_tuple = (23, 16, 10, 32, 45, 18)
+
+        stream.StructTupleWriteBuffer (struct_type, False, struct_tuple)
+        stream.Flush ()
+        stream.WriteComplete (1024)
+
+        struct_future = stream.StructTupleRead (struct_type, False)
+        stream.ReadComplete (stream.Written)
+        self.assertEqual (struct_future.Result (), struct_tuple)
+
+    def testStructTupleComplex (self):
+        stream = BufferedStream (TestStream (), 1024)
+
+        struct_type = struct.Struct ('>HH')
+        struct_tuple = ((23, 0), (16, 1), (10, 2), (32, 3), (45, 4), (18, 5))
+
+        stream.StructTupleWriteBuffer (struct_type, True, struct_tuple)
+        stream.Flush ()
+        stream.WriteComplete (1024)
+
+        struct_future = stream.StructTupleRead (struct_type, True)
+        stream.ReadComplete (stream.Written)
+        self.assertEqual (struct_future.Result (), struct_tuple)
+
+    def testBytesTuple (self):
+        stream = BufferedStream (TestStream (), 1024)
+
+        bytes_tuple = (b'one', b'two', b'three', b'four', b'five')
+
+        stream.BytesTupleWriteBuffer (bytes_tuple)
+        stream.Flush ()
+        stream.WriteComplete (1024)
+
+        bytes_tuple_future = stream.BytesTupleRead ()
+        stream.ReadComplete (stream.Written)
+        self.assertEqual (bytes_tuple_future.Result (), bytes_tuple)
 
 #------------------------------------------------------------------------------#
 # Test Stream                                                                  #
@@ -238,7 +287,7 @@ class TestStream (Stream):
             self.rd_buffer.append (size)
             data = (yield self.rd.Await ()) [0]
             if data is None:
-                raise BrokenPipeError ()
+                raise BrokenPipeError (errno.EPIPE, 'Broken pipe')
 
             AsyncReturn (data)
 
@@ -265,7 +314,7 @@ class TestStream (Stream):
         with self.writing:
             size = (yield self.wr.Await ()) [0]
             if size is None:
-                raise BrokenPipeError ()
+                raise BrokenPipeError (errno.EPIPE, 'Broken pipe')
 
             self.wr_buffer.write (data [:size])
             AsyncReturn (min (len (data), size))

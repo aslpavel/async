@@ -193,7 +193,7 @@ class Core (object):
     #--------------------------------------------------------------------------#
     # Iterate                                                                  #
     #--------------------------------------------------------------------------#
-    def Iterator (self, block = True):
+    def Iterator (self, block = None):
         """Core's iterator
 
         Returns generator object which yield at the beginning of each iteration.
@@ -201,6 +201,7 @@ class Core (object):
         if self.Disposed:
             raise RuntimeError ('Core is disposed')
 
+        block = True if block is None else block
         top_level = False
         try:
             # Thread identity is used by Notify to make sure call to notifier is
