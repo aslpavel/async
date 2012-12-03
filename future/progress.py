@@ -12,7 +12,7 @@ class ProgressFuture (DelegatedFuture):
     __slots__ = ('Future', 'OnReport',)
 
     def __init__ (self, future = None):
-        from ...event import Event
+        from ..event import Event
 
         self.Future   = future
         self.OnReport = Event ()
