@@ -82,7 +82,7 @@ class SourceFuture (Future):
 
     Future controlled by its creator FutureSource object.
     """
-    __slots__ = ('source',)
+    __slots__ = Future.__slots__ + ('source',)
 
     def __init__ (self, source):
         self.source = source

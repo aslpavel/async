@@ -9,7 +9,7 @@ __all__ = ('ProgressFuture', 'ProgressAsync',)
 # Progress Future                                                              #
 #------------------------------------------------------------------------------#
 class ProgressFuture (DelegatedFuture):
-    __slots__ = ('Future', 'OnReport',)
+    __slots__ = DelegatedFuture.__slots__ + ('Future', 'OnReport',)
 
     def __init__ (self, future = None):
         from ..event import Event

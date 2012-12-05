@@ -256,7 +256,7 @@ class Future (object):
 class SucceededFuture (Future):
     """Future resolve wit result
     """
-    __slots__ = ('result',)
+    __slots__ = Future.__slots__ + ('result',)
 
     def __init__ (self, result):
         self.result = result
@@ -292,7 +292,7 @@ class SucceededFuture (Future):
 class FailedFuture (Future):
     """Future resolved with error
     """
-    __slots__ = ('error',)
+    __slots__ = Future.__slots__ + ('error',)
 
     def __init__ (self, error):
         self.error = error

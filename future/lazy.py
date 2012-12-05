@@ -11,7 +11,7 @@ class LazyFuture (DelegatedFuture):
     Future object witch is being delegated only created when first of future
     method is called.
     """
-    __slots__ = ('future', 'factory',)
+    __slots__ = DelegatedFuture.__slots__ + ('future', 'factory',)
 
     def __init__ (self, factory):
         self.future  = None

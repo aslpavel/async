@@ -10,7 +10,7 @@ class DelegatedFuture (Future):
 
     Delegate future behavior to different future object.
     """
-    __slots__ = tuple ()
+    __slots__ = Future.__slots__
 
     #--------------------------------------------------------------------------#
     # Future                                                                   #

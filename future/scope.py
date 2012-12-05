@@ -13,7 +13,7 @@ class ScopeFuture (DelegatedFuture):
     Future is resolved when the last of entered scopes has been left or Return
     method was called.
     """
-    __slots__ = ('source', 'future', 'depth',)
+    __slots__ = DelegatedFuture.__slots__ + ('source', 'future', 'depth',)
 
     def __init__ (self):
         self.source = FutureSource ()
