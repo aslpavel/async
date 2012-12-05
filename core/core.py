@@ -34,7 +34,7 @@ class Core (object):
     STATE_EXECUTING = 'executing'
     STATE_DISPOSED  = 'disposed'
 
-    STATE_GRAPH = StateMachineGraph.FromDict (STATE_INIT, {
+    STATE_GRAPH = StateMachineGraph (STATE_INIT, {
         STATE_INIT: (STATE_EXECUTING, STATE_DISPOSED),
         STATE_EXECUTING: (STATE_DISPOSED,)
     })

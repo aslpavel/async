@@ -128,15 +128,7 @@ class StateMachineGraph (set):
     """
     __slots__ = ('initial',)
 
-    def __init__ (self, initial, trans):
-        set.__init__ (self, trans)
-        self.initial = initial
-
-    #--------------------------------------------------------------------------#
-    # Factories                                                                #
-    #--------------------------------------------------------------------------#
-    @classmethod
-    def FromDict (cls, initial, dct):
+    def __init__ (self, initial, graph):
         """Create graph from dictionary representation
 
         Dictionary with state as key and available transition states as its
@@ -151,7 +143,7 @@ class StateMachineGraph (set):
         """
         trans = []
         initial_found = False
-        for src, dsts in dct.items ():
+        for src, dsts in graph.items ():
             for dst in dsts:
                 if src == initial:
                     initial_found = True
@@ -160,7 +152,8 @@ class StateMachineGraph (set):
         if not initial_found:
             raise ValueError ('Initial state does not have available transitions')
 
-        return cls (initial, trans)
+        set.__init__ (self, trans)
+        self.initial = initial
 
     #--------------------------------------------------------------------------#
     # Properties                                                               #
