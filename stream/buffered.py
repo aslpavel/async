@@ -176,7 +176,7 @@ class BufferedStream (WrappedStream):
 
     # Tuple of structures
     @Async
-    def StructTupleRead (self, struct, complex, cancel = None):
+    def StructTupleRead (self, struct, complex = None, cancel = None):
         """Read tuple of structures
         """
         struct_data = yield self.ReadUntilSize (self.size_struct.unpack ((
@@ -188,7 +188,7 @@ class BufferedStream (WrappedStream):
             AsyncReturn (tuple (struct.unpack (struct_data [offset:offset + struct.size]) [0]
                 for offset in range (0, len (struct_data), struct.size)))
 
-    def StructTupleWriteBuffer (self, struct, complex, struct_tuple):
+    def StructTupleWriteBuffer (self, struct_tuple, struct, complex = None):
         """Write tuple of structures to buffer
         """
         self.WriteBuffer (self.size_struct.pack (len (struct_tuple) * struct.size))
@@ -212,8 +212,7 @@ class BufferedStream (WrappedStream):
     def BytesTupleWriteBuffer (self, bytes_tuple):
         """Write bytes array object to buffer
         """
-        self.StructTupleWriteBuffer (self.size_struct, False,
-            tuple (len (bytes) for bytes in bytes_tuple))
+        self.StructTupleWriteBuffer (tuple (len (bytes) for bytes in bytes_tuple), self.size_struct, False)
 
         for bytes in bytes_tuple:
             self.WriteBuffer (bytes)

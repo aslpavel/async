@@ -228,11 +228,11 @@ class StreamTest (unittest.TestCase):
         struct_type = struct.Struct ('>H')
         struct_tuple = (23, 16, 10, 32, 45, 18)
 
-        stream.StructTupleWriteBuffer (struct_type, False, struct_tuple)
+        stream.StructTupleWriteBuffer (struct_tuple, struct_type)
         stream.Flush ()
         stream.WriteComplete (1024)
 
-        struct_future = stream.StructTupleRead (struct_type, False)
+        struct_future = stream.StructTupleRead (struct_type)
         stream.ReadComplete (stream.Written)
         self.assertEqual (struct_future.Result (), struct_tuple)
 
@@ -242,7 +242,7 @@ class StreamTest (unittest.TestCase):
         struct_type = struct.Struct ('>HH')
         struct_tuple = ((23, 0), (16, 1), (10, 2), (32, 3), (45, 4), (18, 5))
 
-        stream.StructTupleWriteBuffer (struct_type, True, struct_tuple)
+        stream.StructTupleWriteBuffer (struct_tuple, struct_type, True)
         stream.Flush ()
         stream.WriteComplete (1024)
 
