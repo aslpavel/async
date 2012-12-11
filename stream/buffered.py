@@ -174,47 +174,46 @@ class BufferedStream (WrappedStream):
         self.WriteBuffer (self.size_struct.pack (len (bytes)))
         self.WriteBuffer (bytes)
 
-    # Tuple of structures
+    # List of structures
     @Async
-    def StructTupleRead (self, struct, complex = None, cancel = None):
-        """Read tuple of structures
+    def StructListRead (self, struct, complex = None, cancel = None):
+        """Read list of structures
         """
         struct_data = yield self.ReadUntilSize (self.size_struct.unpack ((
                       yield self.ReadUntilSize (self.size_struct.size, cancel))) [0], cancel)
         if complex:
-            AsyncReturn (tuple (struct.unpack (struct_data [offset:offset + struct.size])
-                for offset in range (0, len (struct_data), struct.size)))
+            AsyncReturn ([struct.unpack (struct_data [offset:offset + struct.size])
+                for offset in range (0, len (struct_data), struct.size)])
         else:
-            AsyncReturn (tuple (struct.unpack (struct_data [offset:offset + struct.size]) [0]
-                for offset in range (0, len (struct_data), struct.size)))
+            AsyncReturn ([struct.unpack (struct_data [offset:offset + struct.size]) [0]
+                for offset in range (0, len (struct_data), struct.size)])
 
-    def StructTupleWriteBuffer (self, struct_tuple, struct, complex = None):
-        """Write tuple of structures to buffer
+    def StructListWriteBuffer (self, struct_list, struct, complex = None):
+        """Write list of structures to buffer
         """
-        self.WriteBuffer (self.size_struct.pack (len (struct_tuple) * struct.size))
+        self.WriteBuffer (self.size_struct.pack (len (struct_list) * struct.size))
         if complex:
-            for struct_target in struct_tuple:
+            for struct_target in struct_list:
                 self.WriteBuffer (struct.pack (*struct_target))
         else:
-            for struct_target in struct_tuple:
+            for struct_target in struct_list:
                 self.WriteBuffer (struct.pack (struct_target))
 
-    # Tuple of bytes
+    # List of bytes
     @Async
-    def BytesTupleRead (self, cancel = None):
+    def BytesListRead (self, cancel = None):
         """Read array of bytes
         """
-        bytes_tuple = []
-        for size in (yield self.StructTupleRead (self.size_struct, False, cancel)):
-            bytes_tuple.append ((yield self.ReadUntilSize (size)))
-        AsyncReturn (tuple (bytes_tuple))
+        bytes_list = []
+        for size in (yield self.StructListRead (self.size_struct, False, cancel)):
+            bytes_list.append ((yield self.ReadUntilSize (size)))
+        AsyncReturn (bytes_list)
 
-    def BytesTupleWriteBuffer (self, bytes_tuple):
+    def BytesListWriteBuffer (self, bytes_list):
         """Write bytes array object to buffer
         """
-        self.StructTupleWriteBuffer (tuple (len (bytes) for bytes in bytes_tuple), self.size_struct, False)
-
-        for bytes in bytes_tuple:
+        self.StructListWriteBuffer ([len (bytes) for bytes in bytes_list], self.size_struct, False)
+        for bytes in bytes_list:
             self.WriteBuffer (bytes)
 
 #------------------------------------------------------------------------------#

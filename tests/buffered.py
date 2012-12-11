@@ -222,46 +222,46 @@ class StreamTest (unittest.TestCase):
         stream.ReadComplete (stream.Written)
         self.assertEqual (bytes_future.Result (), bytes)
 
-    def testStructTuple (self):
+    def testStructList (self):
         stream = BufferedStream (TestStream (), 1024)
 
         struct_type = struct.Struct ('>H')
-        struct_tuple = (23, 16, 10, 32, 45, 18)
+        struct_list = [23, 16, 10, 32, 45, 18]
 
-        stream.StructTupleWriteBuffer (struct_tuple, struct_type)
+        stream.StructListWriteBuffer (struct_list, struct_type)
         stream.Flush ()
         stream.WriteComplete (1024)
 
-        struct_future = stream.StructTupleRead (struct_type)
+        struct_future = stream.StructListRead (struct_type)
         stream.ReadComplete (stream.Written)
-        self.assertEqual (struct_future.Result (), struct_tuple)
+        self.assertEqual (struct_future.Result (), struct_list)
 
-    def testStructTupleComplex (self):
+    def testStructListComplex (self):
         stream = BufferedStream (TestStream (), 1024)
 
         struct_type = struct.Struct ('>HH')
-        struct_tuple = ((23, 0), (16, 1), (10, 2), (32, 3), (45, 4), (18, 5))
+        struct_list = [(23, 0), (16, 1), (10, 2), (32, 3), (45, 4), (18, 5)]
 
-        stream.StructTupleWriteBuffer (struct_tuple, struct_type, True)
+        stream.StructListWriteBuffer (struct_list, struct_type, True)
         stream.Flush ()
         stream.WriteComplete (1024)
 
-        struct_future = stream.StructTupleRead (struct_type, True)
+        struct_future = stream.StructListRead (struct_type, True)
         stream.ReadComplete (stream.Written)
-        self.assertEqual (struct_future.Result (), struct_tuple)
+        self.assertEqual (struct_future.Result (), struct_list)
 
-    def testBytesTuple (self):
+    def testBytesList (self):
         stream = BufferedStream (TestStream (), 1024)
 
-        bytes_tuple = (b'one', b'two', b'three', b'four', b'five')
+        bytes_list = [b'one', b'two', b'three', b'four', b'five']
 
-        stream.BytesTupleWriteBuffer (bytes_tuple)
+        stream.BytesListWriteBuffer (bytes_list)
         stream.Flush ()
         stream.WriteComplete (1024)
 
-        bytes_tuple_future = stream.BytesTupleRead ()
+        bytes_list_future = stream.BytesListRead ()
         stream.ReadComplete (stream.Written)
-        self.assertEqual (bytes_tuple_future.Result (), bytes_tuple)
+        self.assertEqual (bytes_list_future.Result (), bytes_list)
 
 #------------------------------------------------------------------------------#
 # Test Stream                                                                  #
