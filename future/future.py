@@ -69,9 +69,10 @@ class Future (object):
     # Then                                                                     #
     #--------------------------------------------------------------------------#
     def Then (self, cont):
-        """Continue with continuation
+        """Chain continuation
 
-        Result and Error are passed as arguments of the continuation.
+        Result and Error are passed as arguments of the continuation. Returns
+        this future object as result.
         """
         self.OnCompleted (cont)
         return self
@@ -80,7 +81,7 @@ class Future (object):
     # Chain                                                                    #
     #--------------------------------------------------------------------------#
     def Chain (self, cont):
-        """Continue with continuation
+        """Chain continuation
 
         Result and Error are passed as arguments of the continuation. Returns
         new future with result of the continuation.
@@ -102,7 +103,7 @@ class Future (object):
         return future
 
     def ChainResult (self, cont):
-        """Continue with function
+        """Chain function
 
         Result of resolved future is passed as only argument of the function.
         Returns new future with result of function.
@@ -130,53 +131,6 @@ class Future (object):
         self.OnCompleted (chain_result_cont)
 
         return future
-
-    #--------------------------------------------------------------------------#
-    # Continuation (Deprecated)
-    #--------------------------------------------------------------------------#
-    def Continue (self, continuation):
-        """Continue with continuation
-
-        Result and Error are passed as arguments of the continuation.
-        """
-        self.OnCompleted (continuation)
-        return self
-
-    def ContinueSafe (self, continuation):
-        """Continue with continuation
-
-        Result and Error are passed as arguments of the continuation. If
-        continuation raised an error its caught.
-        """
-        def continuation_safe (result, error):
-            try:
-                return continuation (result, error)
-            except Exception: pass
-
-        return self.Continue (continuation_safe)
-
-    def ContinueSelf (self, continuation):
-        """Continue with continuation
-
-        Resolved future is passed as only argument of the continuation.
-        """
-        return self.Continue (lambda *_: continuation (self))
-
-    def ContinueWith (self, cont):
-        """Continue with continuation
-
-        Result and Error are passed as arguments of the continuation. Returns
-        new future with result of the continuation.
-        """
-        return self.Chain (cont)
-
-    def ContinueWithResult (self, cont):
-        """Continue with function
-
-        Result of resolved future is passed as only argument of the function.
-        Returns new future with result of function.
-        """
-        return self.ChainResult (cont)
 
     #--------------------------------------------------------------------------#
     # Result                                                                   #

@@ -25,7 +25,7 @@ class TimeAwaiter (object):
         """
         future, source = FutureSourcePair ()
         if cancel:
-            cancel.Await ().Continue (lambda *_: source.TrySetCanceled ())
+            cancel.Await ().OnCompleted (lambda *_: source.TrySetCanceled ())
 
         heappush (self.queue, (when, next (self.uid), source, future))
         return future

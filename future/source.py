@@ -12,12 +12,12 @@ class FutureSource (object):
 
     Embeds future object and controls its stated.
     """
-    __slots__ = ('Future', 'result', 'error', 'continuations',)
+    __slots__ = ('Future', 'result', 'error', 'conts',)
 
     def __init__ (self):
         self.result  = None
         self.error   = None
-        self.continuations = []
+        self.conts = []
 
         self.Future = SourceFuture (self)
 
@@ -28,50 +28,50 @@ class FutureSource (object):
         """Resolve embedded future object with provider one
         """
         if future.IsCompleted ():
-            error = future.Error ()
+            result, error = future.GetResult ()
             if error is None:
-                self.ResultSet (future.Result ())
+                self.ResultSet (result)
             else:
-                self.ErrorSet (future.Error ())
+                self.ErrorSet (error)
         else:
-            future.Continue (lambda result, error: self.ErrorSet (error)
-                if error else  self.ResultSEt (result))
+            future.Then (lambda result, error: self.ErrorSet (error)
+                if error else  self.ResultSet (result))
 
     def ResultSet (self, result):
         """Resolve embedded future object with result
         """
-        if self.continuations is None:
+        if self.conts is None:
             return
 
         self.result = result
-        continuations, self.continuations = self.continuations, None
-        for continuation in continuations:
-            continuation (self.result, self.error)
+        conts, self.conts = self.conts, None
+        for cont in conts:
+            cont (self.result, self.error)
 
     def ErrorSet (self, error):
         """Resolve embedded future object with error
         """
-        if self.continuations is None:
+        if self.conts is None:
             return
 
         self.error = error
-        continuations, self.continuations = self.continuations, None
-        for continuation in continuations:
-            continuation (self.result, self.error)
+        conts, self.conts = self.conts, None
+        for cont in conts:
+            cont (self.result, self.error)
 
     def ErrorRaise (self, exception):
         """Raise exception inside embedded future object
         """
-        if self.continuations is None:
+        if self.conts is None:
             return
 
         try: raise exception
         except Exception:
             self.error = sys.exc_info ()
 
-        continuations, self.continuations = self.continuations, None
-        for continuation in continuations:
-            continuation (self.result, self.error)
+        conts, self.conts = self.conts, None
+        for cont in conts:
+            cont (self.result, self.error)
 
 #------------------------------------------------------------------------------#
 # Source Future                                                                #
@@ -90,17 +90,17 @@ class SourceFuture (Future):
     # Awaiter                                                                  #
     #--------------------------------------------------------------------------#
     def IsCompleted (self):
-        return self.source.continuations is None
+        return self.source.conts is None
 
-    def OnCompleted (self, continuation):
-        if self.source.continuations is None:
-            continuation (self.source.result, self.source.error)
+    def OnCompleted (self, cont):
+        if self.source.conts is None:
+            cont (self.source.result, self.source.error)
         else:
-            self.source.continuations.append (continuation)
+            self.source.conts.append (cont)
         return self
 
     def GetResult (self):
-        if self.source.continuations is not None:
+        if self.source.conts is not None:
             raise FutureNotReady ()
         return self.source.result, self.source.error
 

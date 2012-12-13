@@ -16,10 +16,9 @@ class FutureSourceTest (unittest.TestCase):
         self.assertFalse (future.IsCompleted ())
 
         # continue
-        future.Continue     (lambda r, e: results.append ((r, e)))
-        future.ContinueSafe (lambda r, e: results.append ((r, e)))
-        future_with  = future.ContinueWith (lambda *_: 'done')
-        future_error = future.ContinueWith (lambda *_: Raise (ValueError, ValueError ()))
+        future.Then     (lambda r, e: results.append ((r, e)))
+        future_with  = future.Chain (lambda *_: 'done')
+        future_error = future.Chain (lambda *_: Raise (ValueError, ValueError ()))
 
         self.assertEqual (results, [])
         self.assertFalse (future_with.IsCompleted ())
@@ -28,18 +27,17 @@ class FutureSourceTest (unittest.TestCase):
         # resolve
         source.ResultSet (1)
 
-        self.assertEqual (results, [(1, None)] * 2)
+        self.assertEqual (results, [(1, None)])
         self.assertEqual (future_with.Result (), 'done')
         with self.assertRaises (ValueError):
             future_error.Result ()
 
         # continue completed
         del results [:]
-        future.Continue (lambda r, e: results.append ((r, e)))
-        future.ContinueSafe (lambda r, e: results.append ((r, e)))
-        future_with = future.ContinueWith (lambda *_: 'done')
+        future.Then (lambda r, e: results.append ((r, e)))
+        future_with = future.Chain (lambda *_: 'done')
 
-        self.assertEqual (results, [(1, None)] * 2)
+        self.assertEqual (results, [(1, None)])
         self.assertEqual (future_with.Result (), 'done')
 
     def test_error (self):
@@ -50,9 +48,8 @@ class FutureSourceTest (unittest.TestCase):
         self.assertFalse (future.IsCompleted ())
 
         # continue
-        future.Continue     (lambda r, e: results.append ((r, e)))
-        future.ContinueSafe (lambda r, e: results.append ((r, e)))
-        future_with = future.ContinueWith (lambda *_: 'done')
+        future.Then (lambda r, e: results.append ((r, e)))
+        future_with = future.Chain (lambda *_: 'done')
 
         self.assertFalse (future_with.IsCompleted ())
         self.assertEqual (results, [])
@@ -60,18 +57,17 @@ class FutureSourceTest (unittest.TestCase):
         # resolve
         source.ErrorRaise (RuntimeError ())
 
-        self.assertEqual (results, [(None, future.Error ())] * 2)
+        self.assertEqual (results, [(None, future.Error ())])
         self.assertEqual (future_with.Result (), 'done')
         with self.assertRaises (RuntimeError):
             future.Result ()
 
         # continue completed
         del results [:]
-        future.Continue (lambda r, e: results.append ((r, e)))
-        future.ContinueSafe (lambda r, e: results.append ((r, e)))
-        future_with = future.ContinueWith (lambda *_: 'done')
+        future.Then (lambda r, e: results.append ((r, e)))
+        future_with = future.Chain (lambda *_: 'done')
 
-        self.assertEqual (results, [(None, future.Error ())] * 2)
+        self.assertEqual (results, [(None, future.Error ())])
         self.assertEqual (future_with.Result (), 'done')
 
 # vim: nu ft=python columns=120 :

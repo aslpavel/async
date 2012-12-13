@@ -17,7 +17,7 @@ def AsyncTest (test):
         # execute test
         with Core.Instance (Core ()) as core:
             test_future = Async (test) (*args)
-            test_future.Continue (lambda *_: core.Dispose ())
+            test_future.Then (lambda *_: core.Dispose ())
             core ()
         test_future.Result ()
 

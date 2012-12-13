@@ -29,7 +29,7 @@ class LimitTest (unittest.TestCase):
 
         # call
         (Future.All (sleep_limit_10 (1) for i in range (Count))
-            .Continue (lambda *_: operator.setitem (context, 0, False)))
+            .Then (lambda *_: operator.setitem (context, 0, False)))
 
         # run
         for i in range (Count):
