@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from ..future import FutureSource, FutureCanceled
+from ..future import FutureSourcePair, FutureCanceled
 
 __all__ = ('Event',)
 #------------------------------------------------------------------------------#
@@ -67,11 +67,11 @@ class Event (object):
     def Await (self, cancel = None):
         """Asynchronously await next event
         """
-        source = FutureSource ()
+        future, source = FutureSourcePair ()
 
         # handler
         def handler (*args):
-            source.ResultSet (args)
+            source.SetResult (args)
             return False
         self.Subscribe (handler)
 
@@ -79,10 +79,10 @@ class Event (object):
         if cancel:
             def cancel_cont (result, error):
                 self.Unsubscribe (handler)
-                source.ErrorRaise (FutureCanceled ())
-            cancel.Continue (cancel_cont)
+                source.SetCanceled ()
+            cancel.Await ().OnCompleted (cancel_cont)
 
-        return source.Future
+        return future
 
     #--------------------------------------------------------------------------#
     # Representation                                                           #

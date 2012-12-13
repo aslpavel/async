@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import sys
 
-from .compat import Raise
 from .future import Future, FutureNotReady
 
 __all__ = ('FutureSource',)
@@ -88,34 +87,21 @@ class SourceFuture (Future):
         self.source = source
 
     #--------------------------------------------------------------------------#
-    # Continuation                                                             #
+    # Awaiter                                                                  #
     #--------------------------------------------------------------------------#
+    def IsCompleted (self):
+        return self.source.continuations is None
 
-    def Continue (self, continuation):
+    def OnCompleted (self, continuation):
         if self.source.continuations is None:
             continuation (self.source.result, self.source.error)
         else:
             self.source.continuations.append (continuation)
         return self
 
-    #--------------------------------------------------------------------------#
-    # Result                                                                   #
-    #--------------------------------------------------------------------------#
-
-    def Result (self):
+    def GetResult (self):
         if self.source.continuations is not None:
             raise FutureNotReady ()
-
-        error = self.source.error
-        if error is not None:
-            Raise (*error)
-
-        return self.source.result
-
-    def Error (self):
-        return self.source.error
-
-    def IsCompleted (self):
-        return self.source.continuations is None
+        return self.source.result, self.source.error
 
 # vim: nu ft=python columns=120 :

@@ -4,7 +4,7 @@ import functools
 from collections import deque
 
 from .async  import Async
-from .future import FutureSource
+from .future import FutureSourcePair
 
 __all__ = ('LimitAsync',)
 #------------------------------------------------------------------------------#
@@ -25,23 +25,23 @@ def LimitAsync (limit):
             worker_count [0] += 1
             try:
                 while worker_queue:
-                    source, args, keys = worker_queue.popleft ()
-                    if not source.Future.IsCompleted ():
+                    future, source, args, keys = worker_queue.popleft ()
+                    if not future.IsCompleted ():
                         try:
-                            source.ResultSet ((yield async (*args, **keys)))
+                            source.SetResult ((yield async (*args, **keys)))
                         except Exception:
-                            source.ErrorSet (sys.exc_info ())
+                            source.SetError (sys.exc_info ())
             finally:
                 worker_count [0] -= 1
 
         def async_limit (*args, **keys):
-            source = FutureSource ()
-            worker_queue.append ((source, args, keys))
+            future, source = FutureSourcePair ()
+            worker_queue.append ((future, source, args, keys))
 
             if worker_count [0] < limit:
                 worker ()
 
-            return source.Future
+            return future
 
         return functools.update_wrapper (async_limit, async)
 

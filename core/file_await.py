@@ -2,7 +2,7 @@ import errno
 
 from .poller import Poller
 from .error import BrokenPipeError, ConnectionError
-from ..future import FutureSource, FutureCanceled, RaisedFuture, SucceededFuture
+from ..future import FutureSourcePair, FutureCanceled, RaisedFuture, SucceededFuture
 
 __all__ = ('FileAwaiter',)
 #------------------------------------------------------------------------------#
@@ -36,9 +36,12 @@ class FileAwaiter (object):
             return RaisedFuture (ValueError ('Intersecting event mask: {}'.format (self)))
 
         # source
-        source = FutureSource ()
+        future, source = FutureSourcePair ()
         if cancel:
-            cancel.Continue (lambda *_: (self.dispatch (mask), source.ErrorRaise (FutureCanceled ())))
+            def cancel_cont (result, error):
+                self.dispatch (mask)
+                source.TrySetCanceled ()
+            cancel.Await ().OnCompleted (cancel_cont)
 
         # register
         if self.mask:
@@ -50,7 +53,7 @@ class FileAwaiter (object):
         self.mask |= mask
         self.entries.append ((mask, source))
 
-        return source.Future
+        return future
 
     #--------------------------------------------------------------------------#
     # Resolve                                                                  #
@@ -60,13 +63,13 @@ class FileAwaiter (object):
         """
         if event & ~Poller.ERROR:
             for source in self.dispatch (event):
-                source.ResultSet (event)
+                source.TrySetResult (event)
 
         else:
             error = BrokenPipeError (errno.EPIPE, 'Broken pipe') if event & Poller.DISCONNECT else \
                     ConnectionError ()
             for source in self.dispatch (self.mask):
-                source.ErrorRaise (error)
+                source.TrySetException (error)
 
     #--------------------------------------------------------------------------#
     # Private                                                                  #
@@ -113,7 +116,7 @@ class FileAwaiter (object):
         error = error or FutureCanceled ('File await object has been disposed')
 
         for source in self.dispatch (self.mask):
-            source.ErrorRaise (error)
+            source.TrySetException (error)
 
     def __enter__ (self):
         return self

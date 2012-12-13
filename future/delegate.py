@@ -13,22 +13,20 @@ class DelegatedFuture (Future):
     __slots__ = Future.__slots__
 
     #--------------------------------------------------------------------------#
-    # Future                                                                   #
+    # Awaiter                                                                  #
     #--------------------------------------------------------------------------#
-    def FutureGet (self):
-        """Future being delegated
+    def Await (self):
+        """Get awaiter
         """
         raise NotImplementedError ()
 
-    #--------------------------------------------------------------------------#
-    # Future Interface                                                         #
-    #--------------------------------------------------------------------------#
+    def IsCompleted (self):
+        return self.Await ().IsCompleted ()
 
-    def Continue (self, continuation):
-        return self.FutureGet ().Continue (continuation)
+    def OnCompleted (self, continuation):
+        self.Await ().OnCompleted (continuation)
 
-    def IsCompleted (self): return self.FutureGet ().IsCompleted ()
-    def Result      (self): return self.FutureGet ().Result ()
-    def Error       (self): return self.FutureGet ().Error ()
+    def GetResult (self):
+        return self.Await ().GetResult ()
 
 # vim: nu ft=python columns=120 :

@@ -2,7 +2,7 @@
 import sys
 import unittest
 
-from ..future import FutureSource
+from ..future import FutureSourcePair
 from ..async  import Async, AsyncReturn
 
 __all__ = ('AsyncTests',)
@@ -11,16 +11,16 @@ __all__ = ('AsyncTests',)
 #------------------------------------------------------------------------------#
 class AsyncTests (unittest.TestCase):
     def test_normal (self):
-        s0, s1, s2 = (FutureSource () for i in range (3))
+        p0, p1, p2 = (FutureSourcePair () for i in range (3))
         context = []
         append = context.append
 
         @Async
         def async ():
             append (0)
-            append ((yield s1.Future))
-            append ((yield s0.Future))
-            append ((yield s2.Future))
+            append ((yield p1 [0]))
+            append ((yield p0 [0]))
+            append ((yield p2 [0]))
             AsyncReturn (4)
 
         self.assertEqual (context, [])
@@ -29,64 +29,64 @@ class AsyncTests (unittest.TestCase):
         self.assertEqual (context, [0])
         self.assertFalse (result_future.IsCompleted ())
 
-        s0.ResultSet (1)
+        p0 [1].SetResult (1)
         self.assertEqual (context, [0])
         self.assertFalse (result_future.IsCompleted ())
 
-        s1.ResultSet (2)
+        p1 [1].SetResult (2)
         self.assertEqual (context, [0, 2, 1])
         self.assertFalse (result_future.IsCompleted ())
 
-        s2.ResultSet (3)
+        p2 [1].SetResult (3)
         self.assertEqual (context, [0, 2, 1, 3])
         self.assertEqual (result_future.Result (), 4)
 
     def test_error (self):
-        s0, s1, s2 = (FutureSource () for i in range (3))
+        p0, p1, p2 = (FutureSourcePair () for i in range (3))
         context = []
         @Async
         def async ():
             # caught exception
             try:
-                yield s0.Future
+                yield p0 [0]
             except Exception:
                 if sys.exc_info () [0] == ValueError:
                     context.append (0)
 
-            context.append ((yield s1.Future))
+            context.append ((yield p1 [0]))
 
             # uncaught exception
-            yield s2.Future
+            yield p2 [0]
 
         future = async ()
         self.assertFalse (future.IsCompleted ())
 
-        s0.ErrorRaise (ValueError)
+        p0 [1].SetException (ValueError)
         self.assertEqual (context, [0])
         self.assertFalse (future.IsCompleted ())
 
-        s1.ResultSet (1)
+        p1 [1].SetResult (1)
         self.assertEqual (context, [0, 1])
 
-        s2.ErrorRaise (RuntimeError)
+        p2 [1].SetException (RuntimeError)
         with self.assertRaises (RuntimeError):
             future.Result ()
 
-
     def test_recursion_limit (self):
-        source = FutureSource ()
-        limit  = sys.getrecursionlimit ()
+        future, source = FutureSourcePair ()
+        limit = sys.getrecursionlimit ()
+
         @Async
         def async ():
             count = 0
             for i in range (limit * 2):
-                count += (yield source.Future)
+                count += (yield future)
             AsyncReturn (count)
 
-        future = async ().Traceback ('test_recursion_limit')
-        self.assertFalse (future.IsCompleted ())
+        result_future = async ().Traceback ('test_recursion_limit')
+        self.assertFalse (result_future.IsCompleted ())
 
-        source.ResultSet (1)
-        self.assertEqual (future.Result (), limit * 2)
+        source.SetResult (1)
+        self.assertEqual (result_future.Result (), limit * 2)
 
 # vim: nu ft=python columns=120 :

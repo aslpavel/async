@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import unittest
 
-from ..future import FutureSource, FutureCanceled
+from ..future import FutureCanceled
 from ..event import Event
 #------------------------------------------------------------------------------#
 # Event                                                                        #
@@ -51,12 +51,12 @@ class EventTests (unittest.TestCase):
         self.assertEqual (len (event.handlers), 0)
 
         # cancel
-        cancel = FutureSource ()
-        future = event.Await (cancel.Future)
+        cancel = Event ()
+        future = event.Await (cancel)
         self.assertEqual (len (event.handlers), 1)
         self.assertFalse (future.IsCompleted ())
 
-        cancel.ResultSet (None)
+        cancel ()
         self.assertEqual (len (event.handlers), 0)
         self.assertTrue (future.IsCompleted ())
         with self.assertRaises (FutureCanceled):

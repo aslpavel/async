@@ -2,7 +2,7 @@ import itertools
 from heapq import heappush, heappop
 from time import time
 
-from ..future import FutureSource, FutureCanceled
+from ..future import FutureSourcePair, FutureCanceled
 
 __all__ = ('TimeAwaiter',)
 #------------------------------------------------------------------------------#
@@ -23,12 +23,12 @@ class TimeAwaiter (object):
     def Await (self, when, cancel = None):
         """Await time specified by when argument
         """
-        source = FutureSource ()
+        future, source = FutureSourcePair ()
         if cancel:
-            cancel.Continue (lambda *_: source.ErrorRaise (FutureCanceled ()))
+            cancel.Await ().Continue (lambda *_: source.TrySetCanceled ())
 
-        heappush (self.queue, (when, next (self.uid), source))
-        return source.Future
+        heappush (self.queue, (when, next (self.uid), source, future))
+        return future
 
     #--------------------------------------------------------------------------#
     # Resolve                                                                  #
@@ -42,7 +42,7 @@ class TimeAwaiter (object):
         effected = []
         curr_time = time ()
         while self.queue:
-            sched_time, _, source = self.queue [0]
+            sched_time, _, source, future = self.queue [0]
             if sched_time > curr_time:
                 break
             heappop (self.queue)
@@ -50,7 +50,7 @@ class TimeAwaiter (object):
 
         # resolve effected sources
         for source, sched_time in effected:
-            source.ResultSet (sched_time)
+            source.TrySetResult (sched_time)
 
     #--------------------------------------------------------------------------#
     # Timeout                                                                  #
@@ -59,8 +59,8 @@ class TimeAwaiter (object):
         """Timeout before next resolve
         """
         while self.queue:
-            sched_time, _, source = self.queue [0]
-            if not source.Future.IsCompleted ():
+            sched_time, _, source, future = self.queue [0]
+            if not future.IsCompleted ():
                 return max (0, sched_time - time ())
 
             heappop (self.queue)
@@ -77,8 +77,8 @@ class TimeAwaiter (object):
         error = error or FutureCanceled ('Time await object has been disposed')
 
         queue, self.queue = self.queue, []
-        for when, _, source in queue:
-            source.ErrorRaise (error)
+        for entry in queue:
+            entry [2].TrySetException (error)
 
     def __enter__ (self):
         return self

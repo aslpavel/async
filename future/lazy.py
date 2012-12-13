@@ -17,7 +17,7 @@ class LazyFuture (DelegatedFuture):
         self.future  = None
         self.factory = factory
 
-    def FutureGet (self):
+    def Await (self):
         """Create delegated future
         """
         if self.future is None:

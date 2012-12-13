@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import unittest
 from .green import GreenAsync, GreenAwait, GreenError
-from ..future import FutureSource
+from ..future import FutureSourcePair
 
 __all__ = ('GreenTest',)
 #------------------------------------------------------------------------------#
@@ -18,12 +18,12 @@ class CoroutineTest (unittest.TestCase):
     def testSuccess (self):
         """Test successfully resolved coroutine
         """
-        coro, source = self.create ()
+        coro, source, _ = self.create ()
 
         future = coro ()
         self.assertFalse (future.IsCompleted ())
 
-        source.ResultSet ('result')
+        source.SetResult ('result')
         self.assertTrue (future.IsCompleted ())
         self.assertEqual (future.Result (), 'result')
 
@@ -32,15 +32,15 @@ class CoroutineTest (unittest.TestCase):
     def testFailure (self):
         """Test unsuccessfully resolved coroutine
         """
-        coro, source = self.create ()
+        coro, source, source_future = self.create ()
 
         with self.assertRaises (GreenError):
-            GreenAwait (source.Future)
+            GreenAwait (source_future)
 
         future = coro ()
         self.assertFalse (future.IsCompleted ())
 
-        source.ErrorRaise (CoroutineTestError ('error'))
+        source.SetException (CoroutineTestError ('error'))
         self.assertTrue (future.IsCompleted ())
         with self.assertRaises (CoroutineTestError):
             future.Result ()
@@ -51,14 +51,14 @@ class CoroutineTest (unittest.TestCase):
     def create (self):
         """Create (coroutine, source) pair
         """
-        source = FutureSource ()
+        future, source = FutureSourcePair ()
 
         @GreenAsync
         def coroutine ():
             """Nested coroutine
             """
-            return (lambda: GreenAwait (source.Future)) ()
+            return (lambda: GreenAwait (future)) ()
 
-        return coroutine, source
+        return coroutine, source, future
 
 # vim: nu ft=python columns=120 :

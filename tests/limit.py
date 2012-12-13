@@ -6,7 +6,7 @@ import unittest
 import heapq
 
 from ..limit  import LimitAsync
-from ..future import Future, FutureSource
+from ..future import Future, FutureSourcePair
 
 __all__ = ('LimitTest',)
 #------------------------------------------------------------------------------#
@@ -53,18 +53,18 @@ class ManualTimer (object):
     def Sleep (self, time):
         """Sleep for "time" ticks
         """
-        source = FutureSource ()
-        heapq.heappush (self.queue, (self.time + time, next (self.uid), source))
-        return source.Future
+        future, source = FutureSourcePair ()
+        heapq.heappush (self.queue, (self.time + time, next (self.uid), source, future))
+        return future
 
     def Tick (self):
         """Increase time by one
         """
         self.time += 1
         while self.queue:
-            time, uid, source = self.queue [0]
+            time, uid, source, future = self.queue [0]
 
-            if source.Future.IsCompleted ():
+            if future.IsCompleted ():
                 heapq.heappop (self.queue)
                 continue
 
@@ -72,7 +72,7 @@ class ManualTimer (object):
                 return
 
             heapq.heappop (self.queue)
-            source.ResultSet (self.time)
+            source.SetResult (self.time)
 
     @property
     def Time (self):

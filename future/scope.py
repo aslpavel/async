@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from .source import FutureSource
+from .pair import FutureSourcePair
 from .delegate import DelegatedFuture
 
 __all__ = ('ScopeFuture',)
@@ -16,16 +16,16 @@ class ScopeFuture (DelegatedFuture):
     __slots__ = DelegatedFuture.__slots__ + ('source', 'future', 'depth',)
 
     def __init__ (self):
-        self.source = FutureSource ()
+        self.future, self.source = FutureSourcePair ()
         self.depth  = 0
 
     #--------------------------------------------------------------------------#
-    # Future                                                                   #
+    # Awaitable                                                                #
     #--------------------------------------------------------------------------#
-    def FutureGet (self):
+    def Await (self):
         """Delegated future interface
         """
-        return self.source.Future
+        return self.future
 
     #--------------------------------------------------------------------------#
     # Return                                                                   #
@@ -38,7 +38,7 @@ class ScopeFuture (DelegatedFuture):
     def __call__ (self, result = None):
         """Resolve this future with provided result
         """
-        self.source.ResultSet (result)
+        self.source.SetResult (result)
         if self.depth > 0:
             raise ScopeReturn ()
 
@@ -48,7 +48,7 @@ class ScopeFuture (DelegatedFuture):
     def Dispose (self):
         """Resolve this future with None
         """
-        self.source.ResultSet (None)
+        self.source.SetResult (None)
 
     def __enter__ (self):
         self.depth += 1

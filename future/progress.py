@@ -17,10 +17,7 @@ class ProgressFuture (DelegatedFuture):
         self.Future   = future
         self.OnReport = Event ()
 
-    #--------------------------------------------------------------------------#
-    # Future                                                                   #
-    #--------------------------------------------------------------------------#
-    def FutureGet (self):
+    def Await (self):
         return self.Future
 
 #------------------------------------------------------------------------------#

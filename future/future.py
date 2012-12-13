@@ -37,14 +37,110 @@ class Future (object):
             raise TypeError ('Future is an abstract class')
 
     #--------------------------------------------------------------------------#
-    # Continuation                                                             #
+    # Awaitable                                                                #
+    #--------------------------------------------------------------------------#
+    def Await (self):
+        """Get awaiter of awaitable object
+
+        In case of future object awaiter object is future itself.
+        """
+        return self
+
+    def IsCompleted (self):
+        """Is future completed
+        """
+        raise NotImplementedError ()
+
+    def OnCompleted (self, continuation):
+        """Call continuation when the awaiter is completed
+
+        Result and error are passed as arguments of the continuation.
+        """
+        raise NotImplementedError ()
+
+    def GetResult (self):
+        """Get result of the awaiter
+
+        Returns result-error pair.
+        """
+        raise NotImplementedError ()
+
+    #--------------------------------------------------------------------------#
+    # Then                                                                     #
+    #--------------------------------------------------------------------------#
+    def Then (self, cont):
+        """Continue with continuation
+
+        Result and Error are passed as arguments of the continuation.
+        """
+        self.OnCompleted (cont)
+        return self
+
+    #--------------------------------------------------------------------------#
+    # Chain                                                                    #
+    #--------------------------------------------------------------------------#
+    def Chain (self, cont):
+        """Continue with continuation
+
+        Result and Error are passed as arguments of the continuation. Returns
+        new future with result of the continuation.
+        """
+        if self.IsCompleted ():
+            try:
+                return SucceededFuture (cont (*self.GetResult ()))
+            except Exception:
+                return FailedFuture (sys.exc_info ())
+
+        future, source = FutureSourcePair ()
+        def chain_cont (result, error):
+            try:
+                source.SetResult (cont (result, error))
+            except Exception:
+                source.SetError (sys.exc_info ())
+        self.OnCompleted (chain_cont)
+
+        return future
+
+    def ChainResult (self, cont):
+        """Continue with function
+
+        Result of resolved future is passed as only argument of the function.
+        Returns new future with result of function.
+        """
+        if self.IsCompleted ():
+            result, error = self.GetResult ()
+            if error is None:
+                try:
+                    return SucceededFuture (cont (result))
+                except Exception:
+                    return FailedFuture (sys.exc_info ())
+            else:
+                return FailedFuture (error)
+
+        future, source = FutureSourcePair ()
+
+        def chain_result_cont (result, error):
+            if error is None:
+                try:
+                    source.SetResult (cont (result))
+                except Exception:
+                    source.SetError (sys.exc_info ())
+            else:
+                return source.SetError (error)
+        self.OnCompleted (chain_result_cont)
+
+        return future
+
+    #--------------------------------------------------------------------------#
+    # Continuation (Deprecated)
     #--------------------------------------------------------------------------#
     def Continue (self, continuation):
         """Continue with continuation
 
         Result and Error are passed as arguments of the continuation.
         """
-        raise NotImplementedError ()
+        self.OnCompleted (continuation)
+        return self
 
     def ContinueSafe (self, continuation):
         """Continue with continuation
@@ -66,60 +162,21 @@ class Future (object):
         """
         return self.Continue (lambda *_: continuation (self))
 
-    def ContinueWith (self, continuation):
+    def ContinueWith (self, cont):
         """Continue with continuation
 
         Result and Error are passed as arguments of the continuation. Returns
         new future with result of the continuation.
         """
-        if self.IsCompleted ():
-            try:
-                error = self.Error ()
-                return SucceededFuture (continuation (self.Result (), None)
-                    if error is None else continuation (None, error))
-            except Exception:
-                return FailedFuture (sys.exc_info ())
+        return self.Chain (cont)
 
-        source = FutureSource ()
-
-        def continuation_with (result, error):
-            try:
-                source.ResultSet (continuation (result, error))
-            except Exception:
-                source.ErrorSet (sys.exc_info ())
-
-        self.Continue (continuation_with)
-        return source.Future
-
-    def ContinueWithResult (self, continuation):
+    def ContinueWithResult (self, cont):
         """Continue with function
 
         Result of resolved future is passed as only argument of the function.
         Returns new future with result of function.
         """
-        if self.IsCompleted ():
-            error = self.Error ()
-            if error is None:
-                try:
-                    return SucceededFuture (continuation (self.Result ()))
-                except Exception:
-                    return FailedFuture (sys.exc_info ())
-            else:
-                return FailedFuture (error)
-
-        source = FutureSource ()
-
-        def continuation_with (result, error):
-            if error is None:
-                try:
-                    source.ResultSet (continuation (result))
-                except Exception:
-                    source.ErrorSet (sys.exc_info ())
-            else:
-                return source.ErrorSet (error)
-
-        self.Continue (continuation_with)
-        return source.Future
+        return self.ChainResult (cont)
 
     #--------------------------------------------------------------------------#
     # Result                                                                   #
@@ -131,7 +188,11 @@ class Future (object):
         FutureNotReady exception. If future was resolved with error raises
         this error
         """
-        raise NotImplementedError ()
+        result, error = self.GetResult ()
+        if error is None:
+            return result
+        else:
+            Raise (*error)
 
     def Error (self):
         """Error of the future if any
@@ -139,61 +200,66 @@ class Future (object):
         Returns tuple (ErrorType, ErrorObject, Traceback) if future was resolved
         with error None otherwise.
         """
-        raise NotImplementedError ()
-
-    def IsCompleted (self):
-        """Future is completed
-        """
-        raise NotImplementedError ()
+        return self.GetResult () [1]
 
     #--------------------------------------------------------------------------#
     # Composition                                                              #
     #--------------------------------------------------------------------------#
     @staticmethod
-    def Any (futures):
+    def Any (awaitables):
         """Any future
 
         Returns future witch will be resolved with the first resolved future
         from future set.
         """
-        futures = tuple (futures)
-        if not futures:
-            return FailedFuture (ValueError ('Future set is empty'))
+        awaiters = tuple (awaitable.Await () for awaitable in awaitables)
+        if not awaiters:
+            return RaisedFuture (ValueError ('Awaitable set is empty'))
 
-        source  = FutureSource ()
+        future, source = FutureSourcePair ()
 
-        for future in futures:
-            future.ContinueSelf (lambda future: source.ResultSet (future))
-            if source.Future.IsCompleted ():
-                break
+        def awaiter_register (awaiter):
+            if awaiter.IsCompleted ():
+                source.TryResultSet ()
+            else:
+                def any_cont (result, error):
+                    source.TrySetResult (awaiter)
+                awaiter.OnCompleted (any_cont)
 
-        return source.Future
+        for awaiter in awaiters:
+            awaiter_register (awaiter)
+
+        return future
+
 
     @staticmethod
-    def All (futures):
+    def All (awaitables):
         """All future
 
         Returns future witch will be resolved with None, if all futures was
         successfully completed, otherwise with the same error as the first
         unsuccessful future.
         """
-        futures = tuple (futures)
-        source = FutureSource ()
+        awaiters = tuple (awaitable.Await () for awaitable in awaitables)
+        if not awaiters:
+            return RaisedFuture (ValueError ('Awaitable set is empty'))
 
-        count = [len (futures)]
-        def continuation (result, error):
+        future, source = FutureSourcePair ()
+
+        count = [len (awaiters)]
+        def all_cont (result, error):
             if error is None:
                 if count [0] == 1:
-                    source.ResultSet (None)
+                    source.TrySetResult (None)
                 else:
                     count [0] -= 1
             else:
-                source.ErrorSet (error)
+                source.TrySetError (error)
 
-        for future in futures:
-            future.Continue (continuation)
+        for awaiter in awaiters:
+            awaiter.OnCompleted (all_cont)
 
-        return source.Future
+        return future
 
     #--------------------------------------------------------------------------#
     # To String                                                                #
@@ -210,9 +276,9 @@ class Future (object):
         name = type (self).__name__
 
         if self.IsCompleted ():
-            error = self.Error ()
+            result, error = self.GetResult ()
             if error is None:
-                return '<{}[={}] at {}>'.format (name, self.Result (), addr)
+                return '<{}[={}] at {}>'.format (name, result, addr)
             else:
                 return '<{}[~{}: {}] at {}>'.format (name, error [0].__name__, error [1], addr)
         else:
@@ -226,7 +292,7 @@ class Future (object):
         """
         file = file or sys.stderr
 
-        def continuation (result, error):
+        def cont (result, error):
             try:
                 return self.Result ()
             except Exception as error:
@@ -247,8 +313,7 @@ class Future (object):
                 file.write (stream.getvalue ())
                 file.flush ()
 
-        self.Continue (continuation)
-        return self
+        return self.Then (cont)
 
 #------------------------------------------------------------------------------#
 # Succeeded Futures                                                            #
@@ -262,29 +327,16 @@ class SucceededFuture (Future):
         self.result = result
 
     #--------------------------------------------------------------------------#
-    # Continuation                                                             #
+    # Awaiter                                                                  #
     #--------------------------------------------------------------------------#
-    def Continue (self, continuation):
-        continuation (self.result, None)
-        return self
-
-    def ContinueWith (self, continuation):
-        try:
-            return SucceededFuture (continuation (self.result, None))
-        except Exception:
-            return FailedFuture (sys.exc_info ())
-
-    #--------------------------------------------------------------------------#
-    # Result                                                                   #
-    #--------------------------------------------------------------------------#
-    def Result (self):
-        return self.result
-
-    def Error (self):
-        return None
-
     def IsCompleted (self):
         return True
+
+    def OnCompleted (self, continuation):
+        continuation (self.result, None)
+
+    def GetResult (self):
+        return self.result, None
 
 #------------------------------------------------------------------------------#
 # Failed Future                                                                #
@@ -298,26 +350,16 @@ class FailedFuture (Future):
         self.error = error
 
     #--------------------------------------------------------------------------#
-    # Continuation                                                             #
+    # Awaiter                                                                  #
     #--------------------------------------------------------------------------#
-    def Continue (self, continuation):
-        continuation (None, self.error)
-        return self
-
-    def ContinueWith (self, continuation):
-        return self
-
-    #--------------------------------------------------------------------------#
-    # Result                                                                   #
-    #--------------------------------------------------------------------------#
-    def Result (self):
-        Raise (*self.error)
-
-    def Error (self):
-        return self.error
-
     def IsCompleted (self):
         return True
+
+    def OnCompleted (self, continuation):
+        continuation (None, self.error)
+
+    def GetResult (self):
+        return None, self.error
 
 #------------------------------------------------------------------------------#
 # Raised Future                                                                #
@@ -335,6 +377,6 @@ class RaisedFuture (FailedFuture):
 #------------------------------------------------------------------------------#
 # Dependant Types                                                              #
 #------------------------------------------------------------------------------#
-from .source import FutureSource
+from .pair import FutureSourcePair
 
 # vim: nu ft=python columns=120 :

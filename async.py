@@ -3,8 +3,8 @@ import sys
 import inspect
 import functools
 
-from .future.future import Future, SucceededFuture, FailedFuture
-from .future.source import FutureSource
+from .future.future import SucceededFuture, FailedFuture
+from .future.pair import FutureSourcePair
 
 __all__ = ('Async', 'AsyncReturn', 'DummyAsync',)
 #------------------------------------------------------------------------------#
@@ -30,39 +30,31 @@ def Async (function):
 
     def generator_async (*args, **keys):
         generator = function (*args, **keys)
-        source    = FutureSource ()
+        future, source = FutureSourcePair ()
 
         def continuation (result, error):
             """Resume generator with provided result, error pair.
             """
             try:
                 while True:
-                    future = (generator.send  (result) if error is None else
-                              generator.throw (*error))
+                    awaiter = (generator.send  (result) if error is None else
+                               generator.throw (*error)).Await ()
 
-                    assert isinstance (future, Future), 'Not a future: {}'.format (future)
-
-                    if future.IsCompleted ():
-                        # avoid recursion
-                        error  = future.Error ()
-                        if error is None:
-                            result = future.Result ()
-                        else:
-                            result = None
-
+                    if awaiter.IsCompleted ():
+                        result, error = awaiter.GetResult ()
                     else:
-                        future.Continue (continuation)
+                        awaiter.OnCompleted (continuation)
                         return
 
             except StopIteration as result:
-                source.ResultSet (result.args [0] if result.args else None)
+                source.SetResult (result.args [0] if result.args else None)
             except Exception:
-                source.ErrorSet (sys.exc_info ())
+                source.SetError (sys.exc_info ())
 
             generator.close ()
 
         continuation (None, None)
-        return source.Future
+        return future
 
     return functools.update_wrapper (generator_async, function)
 

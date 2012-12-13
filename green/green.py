@@ -3,7 +3,7 @@ import sys
 import functools
 import greenlet
 
-from ..future.source import FutureSource
+from ..future.pair import FutureSourcePair
 
 __all__ = ('GreenAsync', 'GreenAwait', 'GreenError',)
 #------------------------------------------------------------------------------#
@@ -17,26 +17,26 @@ def GreenAsync (function):
 
     def green_async (*args, **keys):
         coroutine = CoroutineGreenlet (lambda _: function (*args, **keys))
-        source    = FutureSource ()
+        future, source = FutureSourcePair ()
 
         def continuation (result, error):
             coroutine.parent = greenlet.getcurrent ()
 
             try:
-                future = (coroutine.switch (result) if error is None else
-                          coroutine.throw  (*error))
+                value = (coroutine.switch (result) if error is None else
+                         coroutine.throw  (*error))
 
                 if coroutine.dead:
-                    source.ResultSet (future)
+                    source.SetResult (value)
                     return
 
-                future.Continue (continuation)
+                value.Await ().OnCompleted (continuation)
 
             except Exception:
-                source.ErrorSet (sys.exc_info ())
+                source.SetError (sys.exc_info ())
 
         continuation (None, None)
-        return source.Future
+        return future
 
     return functools.update_wrapper (green_async, function)
 

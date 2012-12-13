@@ -2,7 +2,6 @@ import sys
 import threading
 
 from ..future import Future, FutureNotReady, FutureCanceled
-from ..future.compat import Raise
 
 __all__ = ('ContextAwaiter',)
 #------------------------------------------------------------------------------#
@@ -104,9 +103,14 @@ class ContextFuture (Future):
         self.value = value
 
     #--------------------------------------------------------------------------#
-    # Future Interface                                                         #
+    # Awaiter                                                                  #
     #--------------------------------------------------------------------------#
-    def Continue (self, cont):
+    def IsCompleted (self):
+        """Is future completed
+        """
+        return self.state & self.STATE_DONE
+
+    def OnCompleted (self, cont):
         """Continue future with continuation
         """
         if self.state & self.STATE_CONT:
@@ -124,21 +128,12 @@ class ContextFuture (Future):
         self.schedule (callback)
         return self
 
-    def IsCompleted (self):
-        """Is future completed
-        """
-        return self.state & self.STATE_DONE
-
-    def Result (self):
+    def GetResult (self):
         """Result of the future
         """
         if self.state & self.STATE_DONE:
             if self.state & self.STATE_FAIL:
-                Raise (*self.value)
-            return self.value
+                return None, self.value
+            else:
+                return self.value, None
         raise FutureNotReady ()
-
-    def Error (self):
-        """Error of the future if any
-        """
-        return self.value if self.state & self.STATE_FAIL else None
