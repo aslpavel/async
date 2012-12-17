@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from ..async import Async
-from ..future import RaisedFuture, SucceededFuture
+from ..future import RaisedFuture, CompletedFuture
 
 __all__ = ('Stream',)
 #------------------------------------------------------------------------------#
@@ -89,7 +89,7 @@ class Stream (object):
     def Flush (self, cancel = None):
         """Flush stream content
         """
-        return SucceededFuture (None)
+        return CompletedFuture (None)
 
     #--------------------------------------------------------------------------#
     # Dispose                                                                  #

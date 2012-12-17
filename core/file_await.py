@@ -2,7 +2,7 @@ import errno
 
 from .poller import Poller
 from .error import BrokenPipeError, ConnectionError
-from ..future import FutureSourcePair, FutureCanceled, RaisedFuture, SucceededFuture
+from ..future import FutureSourcePair, FutureCanceled, RaisedFuture, CompletedFuture
 
 __all__ = ('FileAwaiter',)
 #------------------------------------------------------------------------------#
@@ -29,7 +29,7 @@ class FileAwaiter (object):
         """
         if mask is None:
             self.Dispose (BrokenPipeError (errno.EPIPE, 'Detached from core'))
-            return SucceededFuture (None)
+            return CompletedFuture (None)
         elif not mask:
             return RaisedFuture (ValueError ('Empty event mask'))
         elif mask & self.mask:
