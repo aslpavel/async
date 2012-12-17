@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from ..future import FutureSourcePair, FutureCanceled
 
 __all__ = ('Event',)
 #------------------------------------------------------------------------------#
@@ -62,27 +61,12 @@ class Event (object):
         return self
 
     #--------------------------------------------------------------------------#
-    # Await                                                                    #
+    # Awaitable                                                                #
     #--------------------------------------------------------------------------#
-    def Await (self, cancel = None):
-        """Asynchronously await next event
+    def Await (self):
+        """Get awaiter
         """
-        future, source = FutureSourcePair ()
-
-        # handler
-        def handler (*args):
-            source.SetResult (args)
-            return False
-        self.Subscribe (handler)
-
-        # cancel
-        if cancel:
-            def cancel_cont (result, error):
-                self.Unsubscribe (handler)
-                source.SetCanceled ()
-            cancel.Await ().OnCompleted (cancel_cont)
-
-        return future
+        return EventAwaiter (self)
 
     #--------------------------------------------------------------------------#
     # Representation                                                           #
@@ -91,6 +75,71 @@ class Event (object):
         """String representation
         """
         return '<{} at {}>'.format (type (self).__name__, id (self))
+
+    def __repr__ (self):
+        """String representation
+        """
+        return str (self)
+
+#------------------------------------------------------------------------------#
+# Event Awaiter                                                                #
+#------------------------------------------------------------------------------#
+class EventAwaiter (object):
+    """Event awaiter
+    """
+    __slots__ = ('event', 'value',)
+
+    def __init__ (self, event):
+        self.event = event
+        self.value = None
+
+        event.Subscribe (self.complete)
+
+    #--------------------------------------------------------------------------#
+    # Awaiter                                                                  #
+    #--------------------------------------------------------------------------#
+    def Await (self):
+        """Get awaiter
+        """
+        return self
+
+    def IsCompleted (self):
+        """Is completed
+        """
+        return self.value is not None
+
+    def OnCompleted (self, cont):
+        """On completed
+        """
+        if self.value is None:
+            def cont_handler (*args):
+                cont (args, None)
+                return False
+            self.event.Subscribe (cont_handler)
+        else:
+            cont (self.value, None)
+
+    def GetResult (self):
+        """Result
+        """
+        if self.value is None:
+            raise ValueError ('Awaiter is not completed')
+        return self.value, None
+
+    #--------------------------------------------------------------------------#
+    # Complete                                                                 #
+    #--------------------------------------------------------------------------#
+    def complete (self, *args):
+        """Resolve awaiter
+        """
+        self.value = args
+        return False
+
+    def __str__ (self):
+        """String representation
+        """
+        return '<EventAwaiter [value:{}] at {}'.format (
+            'not-completed' if self.value is None else ','.join (self.value), id (self))
 
     def __repr__ (self):
         """String representation

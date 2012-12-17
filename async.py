@@ -3,7 +3,7 @@ import sys
 import inspect
 import functools
 
-from .future.future import SucceededFuture, FailedFuture
+from .future.future import CompletedFuture
 from .future.pair import FutureSourcePair
 
 __all__ = ('Async', 'AsyncReturn', 'DummyAsync',)
@@ -32,7 +32,7 @@ def Async (function):
         generator = function (*args, **keys)
         future, source = FutureSourcePair ()
 
-        def continuation (result, error):
+        def generator_cont (result, error):
             """Resume generator with provided result, error pair.
             """
             try:
@@ -43,7 +43,7 @@ def Async (function):
                     if awaiter.IsCompleted ():
                         result, error = awaiter.GetResult ()
                     else:
-                        awaiter.OnCompleted (continuation)
+                        awaiter.OnCompleted (generator_cont)
                         return
 
             except StopIteration as result:
@@ -53,7 +53,7 @@ def Async (function):
 
             generator.close ()
 
-        continuation (None, None)
+        generator_cont (None, None)
         return future
 
     return functools.update_wrapper (generator_async, function)
@@ -68,9 +68,9 @@ def DummyAsync (function):
     """
     def dummy_async (*args, **keys):
         try:
-            return SucceededFuture (function (*args, **keys))
+            return CompletedFuture (function (*args, **keys))
         except Exception:
-            return FailedFuture (sys.exc_info ())
+            return CompletedFuture (error = sys.exc_info ())
 
     return functools.update_wrapper (dummy_async, function)
 

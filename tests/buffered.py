@@ -285,7 +285,7 @@ class TestStream (Stream):
     def Read (self, size, cancel = None):
         with self.reading:
             self.rd_buffer.append (size)
-            data = (yield self.rd.Await ()) [0]
+            data = (yield self.rd) [0]
             if data is None:
                 raise BrokenPipeError (errno.EPIPE, 'Broken pipe')
 
@@ -312,7 +312,7 @@ class TestStream (Stream):
     @Async
     def Write (self, data, cancel = None):
         with self.writing:
-            size = (yield self.wr.Await ()) [0]
+            size = (yield self.wr) [0]
             if size is None:
                 raise BrokenPipeError (errno.EPIPE, 'Broken pipe')
 

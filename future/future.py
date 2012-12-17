@@ -9,7 +9,7 @@ else:
 
 from .compat import Raise
 
-__all__ = ('Future', 'SucceededFuture', 'FailedFuture', 'RaisedFuture',
+__all__ = ('Future', 'CompletedFuture', 'SucceededFuture', 'FailedFuture', 'RaisedFuture',
     'FutureError', 'FutureNotReady', 'FutureCanceled')
 #------------------------------------------------------------------------------#
 # Future Errors                                                                #
@@ -51,7 +51,7 @@ class Future (object):
         """
         raise NotImplementedError ()
 
-    def OnCompleted (self, continuation):
+    def OnCompleted (self, cont):
         """Call continuation when the awaiter is completed
 
         Result and error are passed as arguments of the continuation.
@@ -88,9 +88,9 @@ class Future (object):
         """
         if self.IsCompleted ():
             try:
-                return SucceededFuture (cont (*self.GetResult ()))
+                return CompletedFuture (cont (*self.GetResult ()))
             except Exception:
-                return FailedFuture (sys.exc_info ())
+                return CompletedFuture (error = sys.exc_info ())
 
         future, source = FutureSourcePair ()
         def chain_cont (result, error):
@@ -112,11 +112,11 @@ class Future (object):
             result, error = self.GetResult ()
             if error is None:
                 try:
-                    return SucceededFuture (cont (result))
+                    return CompletedFuture (cont (result))
                 except Exception:
-                    return FailedFuture (sys.exc_info ())
+                    return CompletedFuture (error = sys.exc_info ())
             else:
-                return FailedFuture (error)
+                return CompletedFuture (error = error)
 
         future, source = FutureSourcePair ()
 
@@ -270,15 +270,15 @@ class Future (object):
         return self.Then (cont)
 
 #------------------------------------------------------------------------------#
-# Succeeded Futures                                                            #
+# Completed Future                                                             #
 #------------------------------------------------------------------------------#
-class SucceededFuture (Future):
-    """Future resolve wit result
+class CompletedFuture (Future):
+    """Completed future
     """
-    __slots__ = Future.__slots__ + ('result',)
+    __slots__ = Future.__slots__ + ('value',)
 
-    def __init__ (self, result):
-        self.result = result
+    def __init__ (self, result = None, error = None):
+        self.value = result, error
 
     #--------------------------------------------------------------------------#
     # Awaiter                                                                  #
@@ -286,47 +286,28 @@ class SucceededFuture (Future):
     def IsCompleted (self):
         return True
 
-    def OnCompleted (self, continuation):
-        continuation (self.result, None)
+    def OnCompleted (self, cont):
+        cont (*self.value)
 
     def GetResult (self):
-        return self.result, None
+        return self.value
 
-#------------------------------------------------------------------------------#
-# Failed Future                                                                #
-#------------------------------------------------------------------------------#
-class FailedFuture (Future):
+def SucceededFuture (result):
+    """Future resolved with result
+    """
+    return CompletedFuture (result)
+
+def FailedFuture (error):
     """Future resolved with error
     """
-    __slots__ = Future.__slots__ + ('error',)
+    return CompletedFuture (error = error)
 
-    def __init__ (self, error):
-        self.error = error
-
-    #--------------------------------------------------------------------------#
-    # Awaiter                                                                  #
-    #--------------------------------------------------------------------------#
-    def IsCompleted (self):
-        return True
-
-    def OnCompleted (self, continuation):
-        continuation (None, self.error)
-
-    def GetResult (self):
-        return None, self.error
-
-#------------------------------------------------------------------------------#
-# Raised Future                                                                #
-#------------------------------------------------------------------------------#
-class RaisedFuture (FailedFuture):
-    """Future resolved with error
+def RaisedFuture (exception):
+    """Future resolved with error from provided exception
     """
-    __slots__ = FailedFuture.__slots__
-
-    def __init__ (self, exception):
-        try: raise exception
-        except Exception:
-            FailedFuture.__init__ (self, sys.exc_info ())
+    try: raise exception
+    except Exception:
+        return CompletedFuture (error = sys.exc_info ())
 
 #------------------------------------------------------------------------------#
 # Dependant Types                                                              #

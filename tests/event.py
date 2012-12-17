@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 import unittest
 
-from ..future import FutureCanceled
 from ..event import Event
+
 #------------------------------------------------------------------------------#
 # Event                                                                        #
 #------------------------------------------------------------------------------#
@@ -40,26 +40,24 @@ class EventTests (unittest.TestCase):
         """Test await
         """
         event = Event ()
+        awaiter = event.Await ()
+        value = []
 
-        # resolve
-        future = event.Await ()
-        self.assertEqual (len (event.handlers), 1)
-        self.assertFalse (future.IsCompleted ())
+        # not completed
+        self.assertFalse (awaiter.IsCompleted ())
+        awaiter.OnCompleted (lambda result, error: value.append ((result, error)))
+        with self.assertRaises (ValueError):
+            awaiter.GetResult ()
 
-        event (1)
-        self.assertEqual (future.Result (), (1,))
-        self.assertEqual (len (event.handlers), 0)
+        # complete
+        event ('done')
+        self.assertTrue (awaiter.IsCompleted ())
+        self.assertEqual (awaiter.GetResult (), (('done',), None))
+        self.assertEqual (value, [(('done',), None)])
+        del value [:]
 
-        # cancel
-        cancel = Event ()
-        future = event.Await (cancel)
-        self.assertEqual (len (event.handlers), 1)
-        self.assertFalse (future.IsCompleted ())
-
-        cancel ()
-        self.assertEqual (len (event.handlers), 0)
-        self.assertTrue (future.IsCompleted ())
-        with self.assertRaises (FutureCanceled):
-            future.Result ()
+        # completed
+        awaiter.OnCompleted (lambda result, error: value.append ((result, error)))
+        self.assertEqual (value, [(('done',), None)])
 
 # vim: nu ft=python columns=120 :
