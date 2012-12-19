@@ -4,6 +4,7 @@ import functools
 import greenlet
 
 from ..future.pair import FutureSourcePair
+from ..future.compat import Raise
 
 __all__ = ('GreenAsync', 'GreenAwait', 'GreenError',)
 #------------------------------------------------------------------------------#
@@ -19,7 +20,7 @@ def GreenAsync (function):
         coroutine = CoroutineGreenlet (lambda _: function (*args, **keys))
         future, source = FutureSourcePair ()
 
-        def continuation (result, error):
+        def green_cont (result, error):
             coroutine.parent = greenlet.getcurrent ()
 
             try:
@@ -30,12 +31,12 @@ def GreenAsync (function):
                     source.SetResult (value)
                     return
 
-                value.Await ().OnCompleted (continuation)
+                value.Await ().OnCompleted (green_cont)
 
             except Exception:
                 source.SetError (sys.exc_info ())
 
-        continuation (None, None)
+        green_cont (None, None)
         return future
 
     return functools.update_wrapper (green_async, function)
@@ -43,14 +44,18 @@ def GreenAsync (function):
 #------------------------------------------------------------------------------#
 # Await                                                                        #
 #------------------------------------------------------------------------------#
-def GreenAwait (future):
-    """Await for future to be resolved
+def GreenAwait (awaiter):
+    """Await for awaiter to be resolved
 
     Interrupt current green coroutine (if needed) and continue its execution
-    once future object has been resolved. Returns result of the future object.
+    once awaiter object has been resolved. Returns result of the awaiter object.
     """
-    if future.IsCompleted ():
-        return future.Result ()
+    if awaiter.IsCompleted ():
+        result, error = awaiter.GetResult ()
+        if error is None:
+            return result
+        else:
+            Raise (*error)
 
     current = greenlet.getcurrent ()
     if not isinstance (current, CoroutineGreenlet):
@@ -59,7 +64,7 @@ def GreenAwait (future):
     if current.parent is None:
         raise GreenError ('Await without parent')
 
-    return current.parent.switch (future)
+    return current.parent.switch (awaiter)
 
 #------------------------------------------------------------------------------#
 # Green specific types                                                         #
