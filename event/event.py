@@ -22,10 +22,10 @@ class Event (object):
                 self.handlers.append (handler)
 
     #--------------------------------------------------------------------------#
-    # Subscribe                                                                #
+    # On                                                                #
     #--------------------------------------------------------------------------#
-    def Subscribe (self, handler):
-        """Subscribe handler
+    def On (self, handler):
+        """On handler
 
         Returns specified handler. If handler returned value is False it will
         be automatically unsubscripted.
@@ -34,16 +34,16 @@ class Event (object):
         return handler
 
     def __iadd__ (self, handler):
-        """Subscribe handler
+        """On handler
         """
-        self.Subscribe (handler)
+        self.On (handler)
         return self
 
     #--------------------------------------------------------------------------#
-    # Unsubscribe                                                              #
+    # Off                                                              #
     #--------------------------------------------------------------------------#
-    def Unsubscribe (self, handler):
-        """Unsubscribe handler
+    def Off (self, handler):
+        """Off handler
 
         Preferred way to do un-subscription is to return False from handler.
         Returns True in case of successful un-subscription.
@@ -55,9 +55,9 @@ class Event (object):
             return False
 
     def __isub__ (self, handler):
-        """Unsubscribe handler
+        """Off handler
         """
-        self.Unsubscribe (handler)
+        self.Off (handler)
         return self
 
     #--------------------------------------------------------------------------#
@@ -93,7 +93,7 @@ class EventAwaiter (object):
         self.event = event
         self.value = None
 
-        event.Subscribe (self.complete)
+        event.On (self.complete)
 
     #--------------------------------------------------------------------------#
     # Awaiter                                                                  #
@@ -115,7 +115,7 @@ class EventAwaiter (object):
             def cont_handler (*args):
                 cont (args, None)
                 return False
-            self.event.Subscribe (cont_handler)
+            self.event.On (cont_handler)
         else:
             cont (self.value, None)
 

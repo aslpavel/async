@@ -62,18 +62,18 @@ class StateMachine (object):
         self.state = self.graph.Initial
 
     #--------------------------------------------------------------------------#
-    # Subscribe                                                                #
+    # On                                                                #
     #--------------------------------------------------------------------------#
-    def Subscribe (self, src, dst, handler):
-        """Subscribe handler to the specified transition
+    def On (self, src, dst, handler):
+        """On handler to the specified transition
         """
-        return self.Event (src, dst).Subscribe (handler)
+        return self.Event (src, dst).On (handler)
 
     #--------------------------------------------------------------------------#
-    # Unsubscribe                                                              #
+    # Off                                                              #
     #--------------------------------------------------------------------------#
-    def Unsubscribe (self, src, dst, handler):
-        """Unsubscribe handler from the specified transition
+    def Off (self, src, dst, handler):
+        """Off handler from the specified transition
         """
         trans = self.trans.get ((src, dst), self.ERROR_TRANS)
         if trans is self.ERROR_TRANS:
@@ -81,7 +81,7 @@ class StateMachine (object):
 
         if trans is None:
             return False
-        return trans.Unsubscribe (handler)
+        return trans.Off (handler)
 
     #--------------------------------------------------------------------------#
     # Await                                                                    #

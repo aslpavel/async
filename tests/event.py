@@ -9,7 +9,7 @@ from ..event import Event
 class EventTests (unittest.TestCase):
     """Event unit tests
     """
-    def testSubscribe (self):
+    def testOn (self):
         """Test add and remove
         """
         values = []
@@ -22,17 +22,17 @@ class EventTests (unittest.TestCase):
         event (0)
 
         # add
-        event.Subscribe (handler)
+        event.On (handler)
         event (1)
         self.assertEqual (values, [1])
 
         # remove
-        self.assertTrue (event.Unsubscribe (handler))
+        self.assertTrue (event.Off (handler))
         event (2)
         self.assertEqual (values, [1])
 
         # double remove
-        self.assertFalse (event.Unsubscribe (handler))
+        self.assertFalse (event.Off (handler))
         event (3)
         self.assertEqual (values, [1])
 
