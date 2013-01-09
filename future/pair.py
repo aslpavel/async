@@ -99,6 +99,21 @@ class SourceSender (object):
         """
         return self.TrySetException (FutureCanceled ())
 
+    #--------------------------------------------------------------------------#
+    # Dispose                                                                  #
+    #--------------------------------------------------------------------------#
+    def Dispose (self):
+        """Dispose object
+        """
+        self.TrySetCanceled ()
+
+    def __enter__ (self):
+        return self
+
+    def __exit__ (self, et, eo, tb):
+        self.Dispose ()
+        return False
+
 #------------------------------------------------------------------------------#
 # Source Receiver                                                              #
 #------------------------------------------------------------------------------#
