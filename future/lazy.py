@@ -8,23 +8,30 @@ __all__ = ('LazyFuture',)
 class LazyFuture (DelegatedFuture):
     """Lazy future
 
-    Future object witch is being delegated only created when first of future
-    method is called.
+    Awaiter is initialized lazily, from provided ``awaiter_get`` factory function.
     """
-    __slots__ = DelegatedFuture.__slots__ + ('future', 'factory',)
+    __slots__ = DelegatedFuture.__slots__ + ('awaiter', 'awaiter_get',)
 
-    def __init__ (self, factory):
-        self.future  = None
-        self.factory = factory
+    def __init__ (self, awaiter_get):
+        self.awaiter     = None
+        self.awaiter_get = awaiter_get
 
+    #--------------------------------------------------------------------------#
+    # Awaitable                                                                #
+    #--------------------------------------------------------------------------#
     def Await (self):
-        """Create delegated future
+        """Get awaiter
         """
-        if self.future is None:
-            self.future = self.factory ()
-        return self.future
+        if self.awaiter is None:
+            self.awaiter = self.awaiter_get ()
+        return self.awaiter
 
+    #--------------------------------------------------------------------------#
+    # Representation                                                           #
+    #--------------------------------------------------------------------------#
     def __str__ (self):
-        return '<LazyFuture: {}>'.format (self.future)
+        """String representation
+        """
+        return '<LazyFuture: {}>'.format (self.awaiter)
 
 # vim: nu ft=python columns=120 :

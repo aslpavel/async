@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from ..future.future import Future
+
 __all__ = ('Event',)
 #------------------------------------------------------------------------------#
 # Event                                                                        #
@@ -18,7 +20,7 @@ class Event (object):
         """Fire event
         """
         if self.handling:
-            raise RuntimeError ('Event raised inside event handler')
+            raise RuntimeError ('Event fired in its handler')
 
         try:
             self.handling = True
@@ -75,7 +77,7 @@ class Event (object):
     def Await (self):
         """Get awaiter
         """
-        return EventAwaiter (self)
+        return EventFuture (self)
 
     #--------------------------------------------------------------------------#
     # Representation                                                           #
@@ -91,27 +93,26 @@ class Event (object):
         return str (self)
 
 #------------------------------------------------------------------------------#
-# Event Awaiter                                                                #
+# Event Future                                                                 #
 #------------------------------------------------------------------------------#
-class EventAwaiter (object):
-    """Event awaiter
+class EventFuture (Future):
+    """Event future
     """
-    __slots__ = ('event', 'value',)
+    __slots__ = Future.__slots__ + ('event', 'value',)
 
     def __init__ (self, event):
         self.event = event
         self.value = None
 
-        event.On (self.complete)
+        def complete (*args):
+            self.value = args
+            return False
+
+        event.On (complete)
 
     #--------------------------------------------------------------------------#
-    # Awaiter                                                                  #
+    # Awaitable                                                                #
     #--------------------------------------------------------------------------#
-    def Await (self):
-        """Get awaiter
-        """
-        return self
-
     def IsCompleted (self):
         """Is completed
         """
@@ -136,18 +137,12 @@ class EventAwaiter (object):
         return self.value, None
 
     #--------------------------------------------------------------------------#
-    # Complete                                                                 #
+    # Representation                                                           #
     #--------------------------------------------------------------------------#
-    def complete (self, *args):
-        """Resolve awaiter
-        """
-        self.value = args
-        return False
-
     def __str__ (self):
         """String representation
         """
-        return '<EventAwaiter [value:{}] at {}'.format (
+        return '<EventFuture [value:{}] at {}>'.format (
             'not-completed' if self.value is None else ','.join (self.value), id (self))
 
     def __repr__ (self):
