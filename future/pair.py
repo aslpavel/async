@@ -2,9 +2,9 @@
 import sys
 from .future import Future, FutureNotReady, FutureCanceled
 
-FLAG_NONE = 0x0
-FLAG_DONE = 0x1
-FLAG_FAIL = 0x2
+STATE_NONE = 0x0
+STATE_DONE = 0x1
+STATE_FAIL = 0x2
 
 __all__ = ('FutureSourcePair',)
 #------------------------------------------------------------------------------#
@@ -13,7 +13,7 @@ __all__ = ('FutureSourcePair',)
 def FutureSourcePair ():
     """Returns Future, FutureSource pair
     """
-    context = [FLAG_NONE, None, []] # flags, value, continuations
+    context = [STATE_NONE, None, []] # state, value, continuations
     return SourceReceiver (context), SourceSender (context)
 
 #------------------------------------------------------------------------------#
@@ -59,10 +59,10 @@ class SourceSender (object):
         """Try set result
         """
         context = self.context
-        if context [0] & FLAG_DONE:
+        if context [0] & STATE_DONE:
             return False
 
-        context [0] |= FLAG_DONE
+        context [0] |= STATE_DONE
         context [1]  = result
         conts, context [2] = context [2], None
         for cont in conts:
@@ -74,10 +74,10 @@ class SourceSender (object):
         """Try set error
         """
         context = self.context
-        if context [0] & FLAG_DONE:
+        if context [0] & STATE_DONE:
             return False
 
-        context [0] |= FLAG_DONE | FLAG_FAIL
+        context [0] |= STATE_DONE | STATE_FAIL
         context [1]  = error
         conts, context [2] = context [2], None
         for cont in conts:
@@ -129,14 +129,14 @@ class SourceReceiver (Future):
     def IsCompleted (self):
         """Is awaiter completed
         """
-        return self.context [0] & FLAG_DONE
+        return self.context [0] & STATE_DONE
 
     def OnCompleted (self, cont):
         """On awaiter completed
         """
-        flags = self.context [0]
-        if flags & FLAG_DONE:
-            if flags & FLAG_FAIL:
+        state = self.context [0]
+        if state & STATE_DONE:
+            if state & STATE_FAIL:
                 cont (None, self.context [1])
             else:
                 cont (self.context [1], None)
@@ -146,9 +146,9 @@ class SourceReceiver (Future):
     def GetResult (self):
         """Get result
         """
-        flags = self.context [0]
-        if flags & FLAG_DONE:
-            if flags & FLAG_FAIL:
+        state = self.context [0]
+        if state & STATE_DONE:
+            if state & STATE_FAIL:
                 return None, self.context [1]
             else:
                 return self.context [1], None
