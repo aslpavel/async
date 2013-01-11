@@ -127,7 +127,7 @@ class Stream (object):
         return False
 
     #--------------------------------------------------------------------------#
-    # Representation                                                           #
+    # To String                                                                #
     #--------------------------------------------------------------------------#
     def __str__ (self):
         """String representation
@@ -185,7 +185,7 @@ class StreamContext (object):
     __nonzero__ = __bool__
 
     #--------------------------------------------------------------------------#
-    # Representation                                                           #
+    # To String                                                                #
     #--------------------------------------------------------------------------#
     def __str__ (self):
         """Context string representation

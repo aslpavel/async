@@ -27,11 +27,11 @@ class LazyFuture (DelegatedFuture):
         return self.awaiter
 
     #--------------------------------------------------------------------------#
-    # Representation                                                           #
+    # To String                                                                #
     #--------------------------------------------------------------------------#
     def __str__ (self):
         """String representation
         """
-        return '<LazyFuture: {}>'.format (self.awaiter)
+        return '<{0} [awaiter:{2}] at {1}>'.format (type (self).__name__, id (self), self.awaiter)
 
 # vim: nu ft=python columns=120 :

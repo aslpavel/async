@@ -80,7 +80,7 @@ class Event (object):
         return EventFuture (self)
 
     #--------------------------------------------------------------------------#
-    # Representation                                                           #
+    # To String                                                                #
     #--------------------------------------------------------------------------#
     def __str__ (self):
         """String representation
@@ -137,7 +137,7 @@ class EventFuture (Future):
         return self.value, None
 
     #--------------------------------------------------------------------------#
-    # Representation                                                           #
+    # To String                                                                #
     #--------------------------------------------------------------------------#
     def __str__ (self):
         """String representation

@@ -100,7 +100,7 @@ class Pipe (object):
         return False
 
     #--------------------------------------------------------------------------#
-    # Representation                                                           #
+    # To String                                                                #
     #--------------------------------------------------------------------------#
     def __str__ (self):
         """Pipe string representation

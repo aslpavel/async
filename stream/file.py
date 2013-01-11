@@ -139,7 +139,7 @@ class File (Stream):
         return CloseOnExecFD (self.fd, enable)
 
     #--------------------------------------------------------------------------#
-    # Representation                                                           #
+    # To String                                                                #
     #--------------------------------------------------------------------------#
     def __str__ (self):
         """String representation
