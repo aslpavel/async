@@ -18,7 +18,8 @@ def AsyncTest (test):
         with Core.Instance (Core ()) as core:
             test_future = Async (test) (*args)
             test_future.Then (lambda *_: core.Dispose ())
-            core ()
+            if not core.Disposed:
+                core ()
         test_future.Result ()
 
     return functools.update_wrapper (test_async, test)

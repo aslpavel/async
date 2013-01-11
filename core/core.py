@@ -284,7 +284,7 @@ class Core (object):
     def __str__ (self):
         """String representation
         """
-        return '<{} [state:{}] at {}'.format (type (self).__name__, self.state.State, id (self))
+        return '<{} [state:{}] at {}>'.format (type (self).__name__, self.state.State, id (self))
 
     def __repr__ (self):
         """String representation
