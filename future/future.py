@@ -218,11 +218,6 @@ class Future (object):
     #--------------------------------------------------------------------------#
     # To String                                                                #
     #--------------------------------------------------------------------------#
-    def __repr__ (self):
-        """String representation of the future
-        """
-        return self.__str__ ()
-
     def __str__  (self):
         """String representation of the future
         """
@@ -232,11 +227,16 @@ class Future (object):
         if self.IsCompleted ():
             result, error = self.GetResult ()
             if error is None:
-                return '<{}[={}] at {}>'.format (name, result, addr)
+                return '<{} [={}] at {}>'.format (name, result, addr)
             else:
-                return '<{}[~{}: {}] at {}>'.format (name, error [0].__name__, error [1], addr)
+                return '<{} [~{}: {}] at {}>'.format (name, error [0].__name__, error [1], addr)
         else:
-            return '<{}[?] at {}>'.format (name, addr)
+            return '<{} [?] at {}>'.format (name, addr)
+
+    def __repr__ (self):
+        """String representation of the future
+        """
+        return str (self)
 
     #--------------------------------------------------------------------------#
     # Traceback                                                                #
