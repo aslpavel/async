@@ -25,7 +25,7 @@ class Core (object):
     Asynchronous I/O and Timer dispatcher. Executes until all requested
     asynchronous operation are completed or when object itself is disposed.
     All interaction with the Core must be done from that Core's thread,
-    exception are ContextAwait() and Notify().
+    exception are Context() and Notify().
     """
     instance_lock = threading.Lock ()
     instance      = None
@@ -79,7 +79,7 @@ class Core (object):
     #--------------------------------------------------------------------------#
     # Time                                                                     #
     #--------------------------------------------------------------------------#
-    def TimeAwait (self, resume, cancel = None):
+    def Time (self, resume, cancel = None):
         """Resolved when specified unix time is reached
 
         Result of the future is scheduled time or FutureCanceled if it was
@@ -90,7 +90,7 @@ class Core (object):
 
         return self.timer.Await (resume, cancel)
 
-    def TimeDelayAwait (self, delay, cancel = None):
+    def TimeDelay (self, delay, cancel = None):
         """Resolved after specified delay in seconds
 
         Result of the future is scheduled time.
@@ -103,20 +103,20 @@ class Core (object):
     #--------------------------------------------------------------------------#
     # Idle                                                                     #
     #--------------------------------------------------------------------------#
-    def IdleAwait (self, cancel = None):
+    def Idle (self, cancel = None):
         """Resolved when new iteration is started.
 
         Result of the future is None of FutureCanceled if it was canceled.
         """
-        return self.TimeAwait (0, cancel)
+        return self.Time (0, cancel)
 
     #--------------------------------------------------------------------------#
     # Context                                                                  #
     #--------------------------------------------------------------------------#
-    def ContextAwait (self, value = None):
+    def Context (self, value = None):
         """Resolved inside core thread
 
-        It is safe to call this method from any thread at any time. ContextAwait()
+        It is safe to call this method from any thread at any time. Context()
         may be used to transfer control from other threads to the Core's thread.
         """
         if self.Disposed:
