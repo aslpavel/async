@@ -7,7 +7,7 @@ from .stream import Stream
 from .buffered import BufferedStream
 from ..future import RaisedFuture
 from ..async import Async, AsyncReturn
-from ..core import Core
+from ..core import Core, POLL_READ, POLL_WRITE
 from ..core.error import BrokenPipeError, BlockingErrorSet, PipeErrorSet
 
 __all__ = ('File', 'BufferedFile', 'BlockingFD', 'CloseOnExecFD',)
@@ -63,7 +63,7 @@ class File (Stream):
                             raise BrokenPipeError (error.errno, error.strerror)
                         raise
 
-                yield self.core.FileAwait (self.fd, self.core.READ, cancel)
+                yield self.core.Poll (self.fd, POLL_READ, cancel)
 
     #--------------------------------------------------------------------------#
     # Write                                                                    #
@@ -83,7 +83,7 @@ class File (Stream):
                             raise BrokenPipeError (error.errno, error.strerror)
                         raise
 
-                yield self.core.FileAwait (self.fd, self.core.WRITE, cancel)
+                yield self.core.Poll (self.fd, POLL_WRITE, cancel)
 
     #--------------------------------------------------------------------------#
     # Dispose                                                                  #
@@ -99,7 +99,7 @@ class File (Stream):
             yield Stream.Dispose (self, cancel)
         finally:
             fd, self.fd = self.fd, -1
-            self.core.FileAwait (fd, None) # resolve with BrokenPipeError
+            self.core.Poll (fd, None) # resolve with BrokenPipeError
             if self.closefd:
                 os.close (fd)
 

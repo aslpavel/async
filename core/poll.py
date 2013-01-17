@@ -2,7 +2,7 @@
 import errno
 import select
 
-__all__ = ('Poller', 'EPollPoller', 'KQueuePoller', 'SelectPoller',)
+__all__ = ('Poller', 'POLL_READ', 'POLL_WRITE', 'POLL_URGENT', 'POLL_DISCONNECT', 'POLL_ERROR',)
 #------------------------------------------------------------------------------#
 # EPoll Constants                                                              #
 #------------------------------------------------------------------------------#
@@ -20,6 +20,12 @@ EPOLLRDHUP   = 0x2000
 EPOLLONESHOT = 1 << 30
 EPOLLET      = 1 << 31
 
+POLL_READ       = EPOLLIN
+POLL_WRITE      = EPOLLOUT
+POLL_URGENT     = EPOLLPRI
+POLL_DISCONNECT = EPOLLHUP
+POLL_ERROR      = EPOLLERR | EPOLLHUP
+
 #------------------------------------------------------------------------------#
 # Poller                                                                       #
 #------------------------------------------------------------------------------#
@@ -27,12 +33,6 @@ class Poller (object):
     DEFAULT_NAME = 'epoll' if hasattr (select, 'epoll') else \
                    'kqueue' if hasattr (select, 'kqueue') else \
                    'select'
-
-    READ       = EPOLLIN
-    WRITE      = EPOLLOUT
-    URGENT     = EPOLLPRI
-    DISCONNECT = EPOLLHUP
-    ERROR      = EPOLLERR | EPOLLHUP
 
     #--------------------------------------------------------------------------#
     # Factory                                                                  #
@@ -135,7 +135,7 @@ class EPollPoller (Poller):
 # Select Poller                                                                #
 #------------------------------------------------------------------------------#
 class SelectPoller (Poller):
-    SUPPORTED_MASK = Poller.READ | Poller.WRITE
+    SUPPORTED_MASK = POLL_READ | POLL_WRITE
 
     def __init__ (self):
         self.read  = set ()
@@ -154,9 +154,9 @@ class SelectPoller (Poller):
             raise ValueError ('Unsupported event mask: {}'.format (mask))
 
         self.error.add (fd)
-        if mask & Poller.READ:
+        if mask & POLL_READ:
             self.read.add (fd)
-        if mask & Poller.WRITE:
+        if mask & POLL_WRITE:
             self.write.add (fd)
 
     def Modify (self, fd, mask):
@@ -182,11 +182,11 @@ class SelectPoller (Poller):
 
         events = {}
         for fd in read:
-            events [fd] = events.get (fd, 0) | Poller.READ
+            events [fd] = events.get (fd, 0) | POLL_READ
         for fd in write:
-            events [fd] = events.get (fd, 0) | Poller.WRITE
+            events [fd] = events.get (fd, 0) | POLL_WRITE
         for fd in error:
-            events [fd] = events.get (fd, 0) | Poller.ERROR
+            events [fd] = events.get (fd, 0) | POLL_ERROR
 
         return events.items ()
 

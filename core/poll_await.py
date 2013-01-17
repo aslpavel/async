@@ -1,14 +1,15 @@
+# -*- coding: utf-8 -*-
 import errno
 
-from .poller import Poller
+from .poll import POLL_READ, POLL_WRITE, POLL_ERROR, POLL_DISCONNECT
 from .error import BrokenPipeError, ConnectionError
 from ..future import FutureSourcePair, FutureCanceled, RaisedFuture, CompletedFuture
 
-__all__ = ('FileAwaiter',)
+__all__ = ('PollAwaiter',)
 #------------------------------------------------------------------------------#
-# File Await Object                                                            #
+# Poll Awaiter                                                                 #
 #------------------------------------------------------------------------------#
-class FileAwaiter (object):
+class PollAwaiter (object):
     """File await object
     """
     __slots__ = ('fd', 'poller', 'mask', 'entries',)
@@ -61,12 +62,12 @@ class FileAwaiter (object):
     def Resolve (self, event):
         """Resolve pending events effected by specified event mask
         """
-        if event & ~Poller.ERROR:
+        if event & ~POLL_ERROR:
             for source in self.dispatch (event):
                 source.TrySetResult (event)
 
         else:
-            error = BrokenPipeError (errno.EPIPE, 'Broken pipe') if event & Poller.DISCONNECT else \
+            error = BrokenPipeError (errno.EPIPE, 'Broken pipe') if event & POLL_DISCONNECT else \
                     ConnectionError ()
             for source in self.dispatch (self.mask):
                 source.TrySetException (error)
@@ -101,10 +102,10 @@ class FileAwaiter (object):
         """String representation
         """
         events = []
-        self.mask & Poller.READ  and events.append ('read')
-        self.mask & Poller.WRITE and events.append ('write')
-        self.mask & Poller.ERROR and events.append ('error')
-        return '<FileAwaiter [fd:{} events:{}] at {}>'.format (self.fd, ','.join (events), id (self))
+        self.mask & POLL_READ  and events.append ('read')
+        self.mask & POLL_WRITE and events.append ('write')
+        self.mask & POLL_ERROR and events.append ('error')
+        return '<PollAwaiter [fd:{} events:{}] at {}>'.format (self.fd, ','.join (events), id (self))
     __repr__ = __str__
 
     #--------------------------------------------------------------------------#

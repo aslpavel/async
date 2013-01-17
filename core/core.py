@@ -7,11 +7,11 @@ if sys.version_info [0] > 2:
 else:
     from thread import get_ident
 
-from .poller import Poller
-from .notifier import Notifier
-from .file_await import FileAwaiter
+from .poll import Poller
+from .poll_await import PollAwaiter
 from .time_await import TimeAwaiter
 from .context_await import ContextAwaiter
+from .notifier import Notifier
 from ..future import FutureCanceled, RaisedFuture
 from ..event import StateMachine, StateMachineGraph
 
@@ -127,13 +127,7 @@ class Core (object):
     #--------------------------------------------------------------------------#
     # Poll                                                                     #
     #--------------------------------------------------------------------------#
-    READ       = Poller.READ
-    WRITE      = Poller.WRITE
-    URGENT     = Poller.URGENT
-    DISCONNECT = Poller.DISCONNECT
-    ERROR      = Poller.ERROR
-
-    def FileAwait (self, fd, mask, cancel = None):
+    def Poll (self, fd, mask, cancel = None):
         """Poll file descriptor
 
         Poll file descriptor for events specified by mask. If mask is None then
@@ -148,7 +142,7 @@ class Core (object):
 
         file = self.files.get (fd)
         if file is None:
-            file = FileAwaiter (fd, self.poller)
+            file = PollAwaiter (fd, self.poller)
             self.files [fd] = file
 
         return file.Await (mask, cancel)

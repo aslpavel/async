@@ -9,6 +9,7 @@ except ImportError:
 from .sock import Socket
 from .buffered import BufferedStream
 from ..async import Async, AsyncReturn
+from ..core import POLL_READ, POLL_WRITE
 from ..core.error import BrokenPipeError, BlockingErrorSet, PipeErrorSet
 
 __all__ = ('SocketSSL', 'BufferedSocketSSL')
@@ -52,7 +53,7 @@ class SocketSSL (Socket):
                             raise BrokenPipeError (error.errno, error.strerror)
                         raise
 
-                yield self.core.FileAwait (self.fd, self.core.READ, cancel)
+                yield self.core.Poll (self.fd, POLL_READ, cancel)
 
     #--------------------------------------------------------------------------#
     # Write                                                                    #
@@ -76,7 +77,7 @@ class SocketSSL (Socket):
                             raise BrokenPipeError (error.errno, error.strerror)
                         raise
 
-                yield self.core.FileAwait (self.fd, self.core.WRITE, cancel)
+                yield self.core.Poll (self.fd, POLL_WRITE, cancel)
 
     #--------------------------------------------------------------------------#
     # Connect                                                                  #
@@ -100,13 +101,13 @@ class SocketSSL (Socket):
 
                 except ssl.SSLError as error:
                     if error.args [0] == ssl.SSL_ERROR_WANT_READ:
-                        event = self.core.READ
+                        event = POLL_READ
                     elif error.args [0] == ssl.SSL_ERROR_WANT_WRITE:
-                        event = self.core.WRITE
+                        event = POLL_WRITE
                     else:
                         raise
 
-                yield self.core.FileAwait (self.fd, event, cancel)
+                yield self.core.Poll (self.fd, event, cancel)
 
     #--------------------------------------------------------------------------#
     # Accept                                                                   #
@@ -136,7 +137,7 @@ class SocketSSL (Socket):
                     if error.errno not in BlockingErrorSet:
                         raise
 
-                yield self.core.FileAwait (self.fd, self.core.READ, cancel)
+                yield self.core.Poll (self.fd, POLL_READ, cancel)
 
 #------------------------------------------------------------------------------#
 # Buffered SSL Socket                                                          #

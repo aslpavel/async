@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 
+from .poll import POLL_READ
 from .error import BlockingErrorSet
 from ..async import Async
 
@@ -62,7 +63,7 @@ class Notifier (object):
                 except OSError as error:
                     if error.errno not in BlockingErrorSet:
                         break
-                yield self.core.FileAwait (self.read_fd, self.core.READ)
+                yield self.core.Poll (self.read_fd, POLL_READ)
         finally:
             self.Dispose ()
 
@@ -75,12 +76,12 @@ class Notifier (object):
         read_fd, self.read_fd = self.read_fd, -1
         if read_fd >= 0:
             os.close (read_fd)
-            self.core.FileAwait (read_fd, None)
+            self.core.Poll (read_fd, None)
 
         write_fd, self.write_fd = self.write_fd, -1
         if write_fd >= 0:
             os.close (write_fd)
-            self.core.FileAwait (write_fd, None)
+            self.core.Poll (write_fd, None)
 
     def __enter__ (self):
         return self

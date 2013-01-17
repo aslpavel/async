@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import itertools
 from heapq import heappush, heappop
 from time import time
