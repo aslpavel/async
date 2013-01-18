@@ -22,9 +22,8 @@ class Event (object):
         if self.handling:
             raise RuntimeError ('Event fired in its handler')
 
+        self.handling = True
         try:
-            self.handling = True
-
             handlers, self.handlers = self.handlers, []
             for handler in handlers:
                 if handler (*args):
