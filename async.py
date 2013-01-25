@@ -13,7 +13,14 @@ __all__ = ('Async', 'AsyncReturn', 'DummyAsync',)
 def AsyncReturn (value):
     """Return value inside asynchronous function
     """
-    raise StopIteration (value)
+    raise AsyncResult (value)
+
+class AsyncResult (BaseException):
+    """Result exception.
+
+    Use separate result class instead of StopIteration because otherwise it will
+    be handled in standard exception closure.
+    """
 
 def Async (function):
     """Asynchronous function
@@ -46,7 +53,7 @@ def Async (function):
                         awaiter.OnCompleted (generator_cont)
                         return
 
-            except StopIteration as result:
+            except (AsyncResult, StopIteration) as result:
                 source.SetResult (result.args [0] if result.args else None)
             except Exception:
                 source.SetError (sys.exc_info ())
