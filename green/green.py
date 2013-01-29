@@ -16,6 +16,7 @@ def GreenAsync (function):
     Create asynchronous function out of provided function.
     """
 
+    @functools.wraps (function)
     def green_async (*args, **keys):
         coroutine = CoroutineGreenlet (lambda _: function (*args, **keys))
         future, source = FutureSourcePair ()
@@ -39,7 +40,7 @@ def GreenAsync (function):
         green_cont (None, None)
         return future
 
-    return functools.update_wrapper (green_async, function)
+    return green_async
 
 #------------------------------------------------------------------------------#
 # Await                                                                        #

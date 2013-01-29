@@ -13,6 +13,7 @@ def AsyncTest (test):
     Make asynchronous test from from generator test function.
     """
 
+    @functools.wraps (test)
     def test_async (*args):
         # execute test
         with Core.Instance (Core ()) as core:
@@ -22,7 +23,7 @@ def AsyncTest (test):
                 core ()
         test_future.Result ()
 
-    return functools.update_wrapper (test_async, test)
+    return test_async
 
 #------------------------------------------------------------------------------#
 # Load Test Protocol                                                           #

@@ -26,12 +26,13 @@ class ProgressFuture (DelegatedFuture):
 def ProgressAsync (function):
     async = Async (function)
 
+    @functools.wraps (function)
     def progress_async (*args, **keys):
         progress = ProgressFuture ()
         keys ['report'] = progress.OnReport
         progress.Future = ProgressFuture (async (*args, **keys))
         return progress
 
-    return functools.update_wrapper (progress_async, function)
+    return progress_async
 
 # vim: nu ft=python columns=120 :

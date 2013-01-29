@@ -14,6 +14,7 @@ def Singleton (async):
     def saved_clean (result, error):
         saved [0] = None
 
+    @functools.wraps (async)
     def async_single (*args, **keys):
         if saved [0] is not None:
             return saved [0]
@@ -25,4 +26,4 @@ def Singleton (async):
 
         return awaiter
 
-    return functools.update_wrapper (async_single, async)
+    return async_single

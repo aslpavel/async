@@ -34,6 +34,7 @@ def LimitAsync (limit):
             finally:
                 worker_count [0] -= 1
 
+        @functools.wraps (async)
         def async_limit (*args, **keys):
             future, source = FutureSourcePair ()
             worker_queue.append ((future, source, args, keys))
@@ -43,7 +44,7 @@ def LimitAsync (limit):
 
             return future
 
-        return functools.update_wrapper (async_limit, async)
+        return async_limit
 
     return decorator
 

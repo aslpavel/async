@@ -35,6 +35,7 @@ def Async (function):
     if not inspect.isgeneratorfunction (function):
         raise ValueError ('Function is not a generator')
 
+    @functools.wraps (function)
     def generator_async (*args, **keys):
         generator = function (*args, **keys)
         future, source = FutureSourcePair ()
@@ -63,7 +64,7 @@ def Async (function):
         generator_cont (None, None)
         return future
 
-    return functools.update_wrapper (generator_async, function)
+    return generator_async
 
 #------------------------------------------------------------------------------#
 # Dummy Asynchronous Function                                                  #
@@ -73,12 +74,13 @@ def DummyAsync (function):
 
     Create pseudo asynchronous function out of passed function
     """
+    @functools.wraps (function)
     def dummy_async (*args, **keys):
         try:
             return CompletedFuture (function (*args, **keys))
         except Exception:
             return CompletedFuture (error = sys.exc_info ())
 
-    return functools.update_wrapper (dummy_async, function)
+    return dummy_async
 
 # vim: nu ft=python columns=120 :
