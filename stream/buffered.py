@@ -19,10 +19,14 @@ class BufferedStream (WrappedStream):
     def __init__ (self, base, buffer_size = None):
         WrappedStream.__init__ (self, base)
 
+        self.buffer_size = buffer_size or self.default_buffer_size
         self.read_buffer = Buffer ()
         self.write_buffer = Buffer ()
 
-        self.buffer_size = buffer_size or self.default_buffer_size
+        # We cannot apply Singleton decorator directly to flush_unsafe method
+        # because otherwise this method will be global singleton for all buffered
+        # streams.
+        self.Flush = Singleton (self.flush_unsafe)
 
     #--------------------------------------------------------------------------#
     # Read                                                                     #
@@ -137,14 +141,12 @@ class BufferedStream (WrappedStream):
     #--------------------------------------------------------------------------#
     # Flush                                                                    #
     #--------------------------------------------------------------------------#
-    @Singleton
     @Async
-    def Flush (self, cancel = None):
-        """Flush write buffer
+    def flush_unsafe (self, cancel = None):
+        """Flush function used by singleton Flush method
 
-        This function is singleton, which means it will not start new flush
-        until previous one is finished (same future object is returned). So it's
-        safe to call it regardless to completion of previous call.
+        Unsafe because if called while flushing in progress will raise exception.
+        This method wrapped inside singleton decorator used as public Flush method.
         """
         if self.base is None:
             return # base stream was detached
