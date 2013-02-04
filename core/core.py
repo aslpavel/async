@@ -207,10 +207,11 @@ class Core (object):
             elif self.thread_ident != get_ident ():
                 raise ValueError ('Core is already being run on a different thread')
 
-            events = tuple ()
-            files = self.files
+            timer   = self.timer
+            files   = self.files
             context = self.context
-            timer = self.timer
+
+            events = tuple ()
             while True:
                 # resolve await objects
                 for fd, event in events:
