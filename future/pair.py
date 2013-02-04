@@ -52,10 +52,10 @@ class SourceSender (object):
         if not self.TrySetException (exception):
             raise ValueError ('Future has already been resolved')
 
-    def SetCanceled (self):
+    def SetCanceled (self, msg = None):
         """Set canceled
         """
-        if not self.TrySetCanceled ():
+        if not self.TrySetCanceled (msg):
             raise ValueError ('Future has already been resolved')
 
     #--------------------------------------------------------------------------#
@@ -100,10 +100,10 @@ class SourceSender (object):
 
         return self.TrySetError (error)
 
-    def TrySetCanceled (self):
+    def TrySetCanceled (self, msg = None):
         """Try set canceled
         """
-        return self.TrySetException (FutureCanceled ())
+        return self.TrySetException (FutureCanceled (msg) if msg else FutureCanceled ())
 
     #--------------------------------------------------------------------------#
     # Awaitable                                                                #
