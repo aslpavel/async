@@ -43,7 +43,7 @@ class SourceSender (object):
     def SetCurrentError (self):
         """Set error to current error
         """
-        if not self.TrySetError (sys.exc_info ()):
+        if not self.TrySetCurrentError ():
             raise ValueError ('Future has already been resolved')
 
     def SetException (self, exception):
@@ -90,6 +90,11 @@ class SourceSender (object):
             cont (None, error)
 
         return True
+
+    def TrySetCurrentError (self):
+        """Try set error from current exception
+        """
+        return self.TrySetError (sys.exc_info ())
 
     def TrySetException (self, exception):
         """Try set exception
