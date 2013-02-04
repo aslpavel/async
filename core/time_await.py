@@ -3,6 +3,7 @@ import itertools
 from heapq import heappush, heappop
 from time import time
 
+from . import CORE_TIMEOUT
 from ..future import FutureSourcePair, FutureCanceled
 
 __all__ = ('TimeAwaiter',)
@@ -66,8 +67,7 @@ class TimeAwaiter (object):
 
             heappop (self.queue)
             continue
-
-        return -1
+        return CORE_TIMEOUT
 
     #--------------------------------------------------------------------------#
     # Disposable                                                               #

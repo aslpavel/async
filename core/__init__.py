@@ -1,4 +1,9 @@
 # -*- coding: utf-8 -*-
+# Core's maximum timeout for sleeping inside poll. It easier to manipulate positive
+# timeout then doing branching with negative values. And waking up once in a while
+# won't hurt.
+CORE_TIMEOUT = 3600.0
+
 from . import poll, error, core
 
 from .poll import *

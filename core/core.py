@@ -208,20 +208,24 @@ class Core (object):
                 raise ValueError ('Core is already being run on a different thread')
 
             events = tuple ()
+            files = self.files
+            context = self.context
+            timer = self.timer
             while True:
                 # resolve await objects
                 for fd, event in events:
-                    self.files [fd].Resolve (event)
-                self.context.Resolve ()
-                self.timer.Resolve ()
+                    files [fd].Resolve (event)
+                context.Resolve ()
+                timer.Resolve ()
 
-                # Yield control to check conditions before blocking (Stopped
-                # or desired future has been resolved). If there is no file
+                # Yield control to check conditions before blocking (Core has been
+                # stopped or desired future resolved). If there is no file
                 # descriptors registered and timeout is negative poller will raise
                 # StopIteration and break this loop.
                 yield
+
                 events = self.poller.Poll (0) if not block else \
-                    self.poller.Poll (max (self.timer.Timeout (), self.context.Timeout ()))
+                         self.poller.Poll (min (timer.Timeout (), context.Timeout ()))
 
         finally:
             if top_level:

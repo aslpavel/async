@@ -2,6 +2,7 @@
 import sys
 import threading
 
+from . import CORE_TIMEOUT
 from ..future import Future, FutureNotReady, FutureCanceled
 
 __all__ = ('ContextAwaiter',)
@@ -46,7 +47,7 @@ class ContextAwaiter (object):
         """Timeout before next event
         """
         with self.conts_lock:
-            return 0 if self.conts else -1
+            return 0 if self.conts else CORE_TIMEOUT
 
     #--------------------------------------------------------------------------#
     # Private                                                                  #
@@ -118,7 +119,7 @@ class ContextFuture (Future):
             raise ValueError ('{} can not be continued twice'.format (type (self).__name__))
         self.state |= self.STATE_CONT
 
-        def callback (error):
+        def context_cont (error):
             if error is None:
                 self.state |= self.STATE_DONE
             else:
@@ -126,7 +127,7 @@ class ContextFuture (Future):
                 self.state |= self.STATE_DONE | self.STATE_FAIL
             cont (self.value, error)
 
-        self.schedule (callback)
+        self.schedule (context_cont)
         return self
 
     def GetResult (self):
