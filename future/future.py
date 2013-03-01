@@ -174,7 +174,7 @@ class Future (object):
 
         def awaiter_register (awaiter):
             if awaiter.IsCompleted ():
-                source.TryResultSet ()
+                source.TrySetResult ()
             else:
                 def any_cont (result, error):
                     source.TrySetResult (awaiter)
