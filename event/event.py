@@ -141,8 +141,8 @@ class EventFuture (Future):
     def __str__ (self):
         """String representation
         """
-        return '<EventFuture [value:{}] at {}>'.format (
-            'not-completed' if self.value is None else ','.join (self.value), id (self))
+        return '<EventFuture [value:{}] at {}>'.format ('not-completed' if self.value is None else
+            ','.join (map (repr, self.value)), id (self))
 
     def __repr__ (self):
         """String representation
