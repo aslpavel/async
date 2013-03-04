@@ -161,7 +161,7 @@ class SelectPoller (Poller):
 
     def Modify (self, fd, mask):
         self.Unregister (fd)
-        self.Register (fd)
+        self.Register (fd, mask)
 
     def Unregister (self, fd):
         self.read.discard (fd)
