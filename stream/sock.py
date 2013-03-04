@@ -87,16 +87,16 @@ class Socket (File):
         """Connect asynchronously to address
         """
         with self.connecting:
-            while True:
-                try:
-                    self.sock.connect (address)
-                    AsyncReturn (self)
+            try:
+                self.sock.connect (address)
+                AsyncReturn (self)
 
-                except socket.error as error:
-                    if error.errno not in BlockingErrorSet:
-                        raise
+            except socket.error as error:
+                if error.errno not in BlockingErrorSet:
+                    raise
 
-                yield self.core.Poll (self.fd, POLL_WRITE, cancel)
+            yield self.core.Poll (self.fd, POLL_WRITE, cancel)
+            AsyncReturn (self)
 
     #--------------------------------------------------------------------------#
     # Accept                                                                   #
