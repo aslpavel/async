@@ -179,6 +179,10 @@ class SelectPoller (Poller):
             if error.errno == errno.EINTR:
                 return tuple ()
             raise
+        except select.error as error:
+            if error.args [0] == errno.EINTR:
+                return tuple ()
+            raise
 
         events = {}
         for fd in read:
