@@ -7,11 +7,10 @@ __all__ = ('Event',)
 # Event                                                                        #
 #------------------------------------------------------------------------------#
 class Event (object):
-    __slots__ = ('handlers', 'handling',)
+    __slots__ = ('handlers',)
 
     def __init__ (self):
         self.handlers = []
-        self.handling = False
 
     #--------------------------------------------------------------------------#
     # Fire                                                                     #
@@ -19,17 +18,10 @@ class Event (object):
     def __call__ (self, *args):
         """Fire event
         """
-        if self.handling:
-            raise RuntimeError ('Event fired in its handler')
-
-        self.handling = True
-        try:
-            handlers, self.handlers = self.handlers, []
-            for handler in handlers:
-                if handler (*args):
-                    self.handlers.append (handler)
-        finally:
-            self.handling = False
+        handlers, self.handlers = self.handlers, []
+        for handler in handlers:
+            if handler (*args):
+                self.handlers.append (handler)
 
     #--------------------------------------------------------------------------#
     # On                                                                       #
