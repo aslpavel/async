@@ -1,4 +1,4 @@
-# Asynchronous framework
+# Asynchronous framework (Depricated use "pretzel.monad" instead)
 
 C# like Async/Await paradigm for asynchronous programming in Python
 
